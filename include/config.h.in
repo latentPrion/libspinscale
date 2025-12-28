@@ -1,0 +1,11 @@
+#ifndef _CONFIG_H
+#define _CONFIG_H
+
+/* Debug locking configuration */
+#cmakedefine CONFIG_ENABLE_DEBUG_LOCKS
+#cmakedefine CONFIG_DEBUG_QUTEX_DEADLOCK_TIMEOUT_MS @DEBUG_QUTEX_DEADLOCK_TIMEOUT_MS@
+
+/* Debug callable tracing configuration */
+#cmakedefine CONFIG_DEBUG_TRACE_CALLABLES
+
+#endif /* _CONFIG_H */
