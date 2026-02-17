@@ -8,11 +8,6 @@
 #include <cstdint>
 #include <spinscale/componentThread.h>
 
-// Forward declaration - OptionParser is defined in smocore/include/opts.h
-// If you need tracing, include opts.h before including this header
-// The code will check for OPTS_H define to see if opts.h has been included
-class OptionParser;
-
 namespace sscl {
 
 /**
@@ -50,11 +45,8 @@ public:
 
 	void operator()()
 	{
-		// OptionParser::getOptions() requires opts.h to be included
-		// Only check traceCallables if opts.h has been included (OPTS_H is defined)
-		#ifdef CONFIG_DEBUG_TRACE_CALLABLES
-		#ifdef OPTS_H
-		if (OptionParser::getOptions().traceCallables)
+#ifdef CONFIG_DEBUG_TRACE_CALLABLES
+		if (optTraceCallables)
 		{
 			std::cout << "" << __func__ << ": On thread "
 				<< (ComponentThread::tlsInitialized()
@@ -65,12 +57,14 @@ public:
 				<< ", return addr 1: " << returnAddr1
 				<< std::endl;
 		}
-		#endif
-		#endif
+#endif
 		callable();
 	}
 
 public:
+	/// Set by application (e.g. from opts) to enable per-callable trace output
+	static bool optTraceCallables;
+
 	/// Name of the function that created this callable
 	std::string callerFuncName;
 	/// Line number where this callable was created
@@ -115,7 +109,7 @@ private:
 		// e.g., "void smo::SomeClass::method(int, int)"
 		// __builtin_return_address(0) = direct caller
 		// __builtin_return_address(1) = caller before that
-		#define STC(arg) smo::CallableTracer( \
+		#define STC(arg) sscl::CallableTracer( \
 			__PRETTY_FUNCTION__, \
 			__LINE__, \
 			__builtin_return_address(0), \
@@ -126,7 +120,7 @@ private:
 		// e.g., "void __cdecl smo::SomeClass::method(int, int)"
 		// _ReturnAddress() = direct caller (only one level available)
 		#include <intrin.h>
-		#define STC(arg) smo::CallableTracer( \
+		#define STC(arg) sscl::CallableTracer( \
 			__FUNCSIG__, \
 			__LINE__, \
 			_ReturnAddress(), \
@@ -135,7 +129,7 @@ private:
 	#else
 		// Fallback to standard __func__ (unqualified name only)
 		// No return address support
-		#define STC(arg) smo::CallableTracer( \
+		#define STC(arg) sscl::CallableTracer( \
 			__func__, \
 			__LINE__, \
 			nullptr, \
