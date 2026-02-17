@@ -42,16 +42,18 @@ extern MarionetteComponent mrntt;
 
 struct CrtCommandLineArgs
 {
-    CrtCommandLineArgs(int argc, char *argv[], char *envp[])
-    :   argc(argc), argv(argv), envp(envp)
-    {}
+	CrtCommandLineArgs(int argc, char *argv[], char *envp[])
+	:	argc(argc), argv(argv), envp(envp)
+	{}
 
-    int argc;
-    char **argv;
-    char **envp;
+	int argc;
+	char **argv;
+	char **envp;
 
-    static void set(int argc, char *argv[], char *envp[]);
+	static void set(int argc, char *argv[], char *envp[]);
 };
+
+extern CrtCommandLineArgs crtCommandLineArgs;
 
 } // namespace sscl
 

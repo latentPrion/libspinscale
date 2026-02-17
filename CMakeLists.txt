@@ -76,6 +76,7 @@ add_library(spinscale SHARED
 	src/componentThread.cpp
 	src/component.cpp
 	src/puppetApplication.cpp
+	src/runtime.cpp
 )
 
 # Conditionally add qutexAcquisitionHistoryTracker.cpp only when debug locks
