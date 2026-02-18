@@ -10,7 +10,7 @@ Component::Component(const std::shared_ptr<ComponentThread> &thread)
 }
 
 PuppetComponent::PuppetComponent(
-	PuppetApplication &parent, const std::shared_ptr<ComponentThread> &thread)
+	PuppetApplication &parent, const std::shared_ptr<PuppetThread> &thread)
 :	Component(thread),
 parent(parent)
 {
