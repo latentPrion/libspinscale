@@ -13,33 +13,33 @@
 
 namespace sscl {
 
-namespace mrntt {
-/* Global variable to store the marionette thread ID
+namespace pptr {
+/* Global variable to store the puppeteer thread ID
  * Default value is 0, but should be set by application code via
- * setMarionetteThreadId().
+ * setPuppeteerThreadId().
  */
-ThreadId marionetteThreadId = 0;
-/* Global marionette thread instance - defined here but initialized by
+ThreadId puppeteerThreadId = 0;
+/* Global puppeteer thread instance - defined here but initialized by
  * application code.
  */
-std::shared_ptr<MarionetteThread> thread;
+std::shared_ptr<PuppeteerThread> thread;
 
-void setMarionetteThreadId(ThreadId id)
+void setPuppeteerThreadId(ThreadId id)
 {
-	marionetteThreadId = id;
+	puppeteerThreadId = id;
 }
 
-} // namespace mrntt
+} // namespace pptr
 
 thread_local std::shared_ptr<ComponentThread> thisComponentThread;
 
 // Implementation of static method
-std::shared_ptr<MarionetteThread> ComponentThread::getMrntt()
+std::shared_ptr<PuppeteerThread> ComponentThread::getMrntt()
 {
-	return sscl::mrntt::thread;
+	return sscl::pptr::thread;
 }
 
-void MarionetteThread::initializeTls(void)
+void PuppeteerThread::initializeTls(void)
 {
 	thisComponentThread = shared_from_this();
 }
@@ -177,24 +177,24 @@ void PuppetThread::joltThreadReq(
 	 * We also can't use getSelf() as yet for the same reason: getSelf()
 	 * requires TLS to be set up.
 	 *
-	 * To obtain a sh_ptr to the caller, we just supply the mrntt thread since
-	 * JOLT is always invoked by the mrntt thread. The JOLT sequence that the
-	 * CRT main() function invokes on the mrntt thread is special since it
-	 * supplies cmdline args and envp.
+	 * To obtain a sh_ptr to the caller, we just supply the puppeteer thread
+	 * since JOLT is always invoked by the puppeteer thread. The JOLT sequence
+	 * that the CRT main() function invokes on the puppeteer thread is special
+	 * since it supplies cmdline args and envp.
 	 *
 	 * To obtain a sh_ptr to the target thread, we use the selfPtr parameter
 	 * passed in by the caller.
 	 */
-	if (id == sscl::mrntt::marionetteThreadId)
+	if (id == sscl::pptr::puppeteerThreadId)
 	{
 		throw std::runtime_error(std::string(__func__)
-			+ ": invoked on mrntt thread");
+			+ ": invoked on puppeteer thread");
 	}
 
-	std::shared_ptr<MarionetteThread> mrntt = sscl::mrntt::thread;
+	std::shared_ptr<PuppeteerThread> puppeteer = sscl::pptr::thread;
 
 	auto request = std::make_shared<ThreadLifetimeMgmtOp>(
-		mrntt, selfPtr, callback);
+		puppeteer, selfPtr, callback);
 
 	this->getIoService().post(
 		STC(std::bind(
@@ -236,10 +236,10 @@ void PuppetThread::exitThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
 
 void PuppetThread::pauseThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
 {
-	if (id == sscl::mrntt::marionetteThreadId)
+	if (id == sscl::pptr::puppeteerThreadId)
 	{
 		throw std::runtime_error(std::string(__func__)
-			+ ": invoked on mrntt thread");
+			+ ": invoked on puppeteer thread");
 	}
 
 	std::shared_ptr<ComponentThread> caller = getSelf();
@@ -255,10 +255,10 @@ void PuppetThread::pauseThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
 
 void PuppetThread::resumeThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
 {
-	if (id == sscl::mrntt::marionetteThreadId)
+	if (id == sscl::pptr::puppeteerThreadId)
 	{
 		throw std::runtime_error(std::string(__func__)
-			+ ": invoked on mrntt thread");
+			+ ": invoked on puppeteer thread");
 	}
 
 	// Post to the pause_io_service to unblock the paused thread

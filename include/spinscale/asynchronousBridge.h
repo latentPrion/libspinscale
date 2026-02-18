@@ -34,9 +34,9 @@ public:
 				{ break; }
 
 			/**	EXPLANATION:
-			 * In the mrntt and mind thread loops we call checkException() after
-			 * run() returns, but we don't have to do that here because
-			 * setException() calls stop.
+			 * In the puppeteer and mind thread loops we call checkException()
+			 * after run() returns, but we don't have to do that here because
+			 * setException() calls stop().
 			 *
 			 * So if an exception is set on our thread, we'll break out of this
 			 * loop due to the check for stopped() above, and that'll take us

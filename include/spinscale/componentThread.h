@@ -19,7 +19,7 @@
 
 namespace sscl {
 
-class MarionetteThread;
+class PuppeteerThread;
 class PuppetThread;
 
 // ThreadId is a generic type - application-specific enums should be defined elsewhere
@@ -45,7 +45,7 @@ public:
 
 	static const std::shared_ptr<ComponentThread> getSelf(void);
 	static bool tlsInitialized(void);
-	static std::shared_ptr<MarionetteThread> getMrntt();
+	static std::shared_ptr<PuppeteerThread> getMrntt();
 
 	typedef void (mainFn)(ComponentThread &self);
 
@@ -66,18 +66,18 @@ public:
 	std::atomic<bool> keepLooping;
 };
 
-class MarionetteThread
-:	public std::enable_shared_from_this<MarionetteThread>,
+class PuppeteerThread
+:	public std::enable_shared_from_this<PuppeteerThread>,
 	public ComponentThread
 {
 public:
-	MarionetteThread(ThreadId id = 0)
+	PuppeteerThread(ThreadId id = 0)
 	:	ComponentThread(id),
 	thread(main, std::ref(*this))
 	{
 	}
 
-	static void main(MarionetteThread& self);
+	static void main(PuppeteerThread& self);
 	void initializeTls(void);
 
 public:
@@ -154,14 +154,15 @@ public:
 	class ThreadLifetimeMgmtOp;
 };
 
-namespace mrntt {
-extern std::shared_ptr<MarionetteThread> thread;
+namespace pptr {
+extern std::shared_ptr<PuppeteerThread> thread;
 
-// Forward declaration for marionette thread ID management
+// Forward declaration for puppeteer thread ID management
 // Must be after sscl namespace so ThreadId is defined
-extern ThreadId marionetteThreadId;
-void setMarionetteThreadId(ThreadId id);
-} // namespace mrntt
-}
+extern ThreadId puppeteerThreadId;
+void setPuppeteerThreadId(ThreadId id);
+} // namespace pptr
+
+} // namespace sscl
 
 #endif // COMPONENT_THREAD_H

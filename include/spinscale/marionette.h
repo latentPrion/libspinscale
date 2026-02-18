@@ -8,9 +8,10 @@
 
 namespace sscl {
 
-class MarionetteThread;
+class PuppeteerThread;
+extern std::shared_ptr<sscl::PuppeteerThread> thread;
 
-namespace mrntt {
+namespace pptr {
 
 class MarionetteComponent
 :	public sscl::Component
@@ -31,14 +32,12 @@ private:
 	class TerminationEvent;
 };
 
-extern std::shared_ptr<sscl::MarionetteThread> thread;
-
 extern std::atomic<int> exitCode;
 void exitMarionetteLoop();
 void marionetteFinalizeReqCb(bool success);
 extern MarionetteComponent mrntt;
 
-} // namespace mrntt
+} // namespace pptr
 
 struct CrtCommandLineArgs
 {

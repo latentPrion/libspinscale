@@ -16,7 +16,7 @@ parent(parent)
 {
 }
 
-namespace mrntt {
+namespace pptr {
 
 MarionetteComponent::MarionetteComponent(
 	const std::shared_ptr<sscl::ComponentThread> &thread)
@@ -24,5 +24,6 @@ MarionetteComponent::MarionetteComponent(
 {
 }
 
-} // namespace mrntt
+} // namespace pptr
+
 } // namespace sscl
