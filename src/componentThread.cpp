@@ -14,26 +14,24 @@
 namespace sscl {
 
 namespace mrntt {
-// Global variable to store the marionette thread ID
-// Default value is 0, but should be set by application code via setMarionetteThreadId()
+/* Global variable to store the marionette thread ID
+ * Default value is 0, but should be set by application code via
+ * setMarionetteThreadId().
+ */
 ThreadId marionetteThreadId = 0;
+/* Global marionette thread instance - defined here but initialized by
+ * application code.
+ */
+std::shared_ptr<MarionetteThread> thread;
 
 void setMarionetteThreadId(ThreadId id)
 {
 	marionetteThreadId = id;
 }
+
 } // namespace mrntt
-
-} // namespace sscl
-
-namespace sscl {
 
 thread_local std::shared_ptr<ComponentThread> thisComponentThread;
-
-namespace mrntt {
-// Global marionette thread instance - defined here but initialized by application
-std::shared_ptr<MarionetteThread> thread;
-} // namespace mrntt
 
 // Implementation of static method
 std::shared_ptr<MarionetteThread> ComponentThread::getMrntt()
