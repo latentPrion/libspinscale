@@ -49,6 +49,18 @@ public:
 	PuppetApplication &parent;
 };
 
+namespace pptr {
+
+class PuppeteerComponent
+:	public Component
+{
+public:
+	PuppeteerComponent(const std::shared_ptr<PuppeteerThread> &thread);
+	~PuppeteerComponent() = default;
+};
+
+} // namespace pptr
+
 } // namespace sscl
 
 #endif // COMPONENT_H
