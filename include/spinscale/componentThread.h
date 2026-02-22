@@ -19,8 +19,13 @@
 
 namespace sscl {
 
+class PuppetComponent;
 class PuppeteerThread;
 class PuppetThread;
+
+namespace pptr {
+class PuppeteerComponent;
+}
 
 // ThreadId is a generic type - application-specific enums should be defined elsewhere
 typedef uint8_t ThreadId;
@@ -29,8 +34,7 @@ class ComponentThread
 {
 protected:
 	ComponentThread(ThreadId _id)
-    :   id(_id), name(getThreadName(_id)),
-        work(io_service)
+    : id(_id), name(getThreadName(_id)), work(io_service)
 	{}
 
 public:
@@ -45,9 +49,11 @@ public:
 
 	static const std::shared_ptr<ComponentThread> getSelf(void);
 	static bool tlsInitialized(void);
-	static std::shared_ptr<PuppeteerThread> getMrntt();
-
-	typedef void (mainFn)(ComponentThread &self);
+	static void setPuppeteerThread(const std::shared_ptr<PuppeteerThread> &t);
+	static void setPuppeteerThreadId(ThreadId id);
+	static std::shared_ptr<PuppeteerThread> getPptr();
+	static std::shared_ptr<PuppeteerThread> getPuppeteer()
+		{ return getPptr(); }
 
 	// CPU management methods
 	static int getAvailableCpuCount();
@@ -71,16 +77,44 @@ class PuppeteerThread
 	public ComponentThread
 {
 public:
-	PuppeteerThread(ThreadId id = 0)
-	:	ComponentThread(id),
-	thread(main, std::ref(*this))
-	{
-	}
+	typedef void (*preJoltHookFn)(PuppeteerThread &);
 
-	static void main(PuppeteerThread& self);
+	struct EntryFnArguments
+	{
+		PuppeteerThread &usableBeforeJolt;
+		/**	EXPLANATION:
+		 * The `Puppet*Component` ref points at the Component object which this
+		 * thread is associated with. However, we have no guarantee that this
+		 * object has been constructed at the point of OS thread entry.
+		 *
+		 * Hence this ref must be dereferenced only after JOLT.
+		 */
+		pptr::PuppeteerComponent &useOnlyAfterJolt;
+		preJoltHookFn preJoltHook;
+	};
+
+	using entryPointFn = std::function<void(const EntryFnArguments &)>;
+
+	PuppeteerThread(
+		ThreadId id, entryPointFn entryPoint,
+		pptr::PuppeteerComponent &component,
+		preJoltHookFn preJoltFn)
+	:	ComponentThread(id),
+	entryFnArguments(*this, component, preJoltFn),
+	thread(std::move(entryPoint), std::cref(entryFnArguments))
+	{}
+
 	void initializeTls(void);
+	void exitLoop(void);
 
 public:
+	EntryFnArguments entryFnArguments;
+	/**	EXPLANATION:
+	 * Must always be memberwise-initialized last.
+	 * This ensures that the ref to this `ComponentThread` object, which is
+	 * passed to the entry point function, is fully constructed when the OS
+	 * thread begins executing.
+	 */
 	std::thread thread;
 };
 
@@ -89,6 +123,20 @@ class PuppetThread
 	public ComponentThread
 {
 public:
+	typedef void (*preJoltHookFn)(PuppetThread &);
+
+	struct EntryFnArguments
+	{
+		PuppetThread &usableBeforeJolt;
+		/** See comment above in:
+		 * PuppeteerThread::EntryFnArguments::useOnlyAfterJolt.
+		 */
+		PuppetComponent &useOnlyAfterJolt;
+		preJoltHookFn preJoltHook;
+	};
+
+	using entryPointFn = std::function<void(const EntryFnArguments &)>;
+
 	enum class ThreadOp
 	{
 		START,
@@ -99,17 +147,18 @@ public:
 		N_ITEMS
 	};
 
-	PuppetThread(ThreadId _id)
-	:   ComponentThread(_id),
+	PuppetThread(
+		ThreadId _id, entryPointFn entryPoint, PuppetComponent &component,
+		preJoltHookFn preJoltFn)
+	:	ComponentThread(_id),
 	pinnedCpuId(-1),
 	pause_work(pause_io_service),
-	thread(main, std::ref(*this))
-	{
-	}
+	entryFnArguments(*this, component, preJoltFn),
+	thread(std::move(entryPoint), std::cref(entryFnArguments))
+	{}
 
 	virtual ~PuppetThread() = default;
 
-	static void main(PuppetThread& self);
 	void initializeTls(void);
 
 	// Thread management methods
@@ -137,17 +186,16 @@ public:
 	// CPU management methods
 	void pinToCpu(int cpuId);
 
-protected:
-	/**
-	 * Handle exception - called from main() when an exception occurs.
-	 * Derived classes can override to provide application-specific handling.
-	 */
-	virtual void handleException() {}
-
 public:
 	int pinnedCpuId;
 	boost::asio::io_service pause_io_service;
 	boost::asio::io_service::work pause_work;
+
+public:
+	EntryFnArguments entryFnArguments;
+	/** Must always be memberwise-initialized last.
+	 * See comment on `PuppeteerThread::thread` for explanation.
+	 */
 	std::thread thread;
 
 public:
@@ -156,11 +204,7 @@ public:
 
 namespace pptr {
 extern std::shared_ptr<PuppeteerThread> thread;
-
-// Forward declaration for puppeteer thread ID management
-// Must be after sscl namespace so ThreadId is defined
 extern ThreadId puppeteerThreadId;
-void setPuppeteerThreadId(ThreadId id);
 } // namespace pptr
 
 } // namespace sscl

@@ -8,35 +8,48 @@
 #include <spinscale/asynchronousContinuation.h>
 #include <spinscale/callback.h>
 #include <spinscale/callableTracer.h>
+#include <spinscale/component.h>
 #include <spinscale/componentThread.h>
-#include <spinscale/marionette.h>
 
 namespace sscl {
 
 namespace pptr {
 /* Global variable to store the puppeteer thread ID
  * Default value is 0, but should be set by application code via
- * setPuppeteerThreadId().
+ * ComponentThread::setPuppeteerThreadId().
  */
 ThreadId puppeteerThreadId = 0;
-/* Global puppeteer thread instance - defined here but initialized by
- * application code.
+/* Global puppeteer thread instance - assigned by application code
+ * (e.g. smo::mrntt::thread) via setPuppeteerThread().
  */
 std::shared_ptr<PuppeteerThread> thread;
-
-void setPuppeteerThreadId(ThreadId id)
-{
-	puppeteerThreadId = id;
-}
 
 } // namespace pptr
 
 thread_local std::shared_ptr<ComponentThread> thisComponentThread;
 
-// Implementation of static method
-std::shared_ptr<PuppeteerThread> ComponentThread::getMrntt()
+void ComponentThread::setPuppeteerThreadId(ThreadId id)
 {
-	return sscl::pptr::thread;
+	pptr::puppeteerThreadId = id;
+}
+
+void ComponentThread::setPuppeteerThread(
+	const std::shared_ptr<PuppeteerThread> &t
+	)
+{
+	pptr::thread = t;
+}
+
+std::shared_ptr<PuppeteerThread> ComponentThread::getPptr()
+{
+	return pptr::thread;
+}
+
+void PuppeteerThread::exitLoop(void)
+{
+	keepLooping = false;
+	getIoService().stop();
+	std::cout << name << ": Signaled main loop to exit." << "\n";
 }
 
 void PuppeteerThread::initializeTls(void)
@@ -191,7 +204,7 @@ void PuppetThread::joltThreadReq(
 			+ ": invoked on puppeteer thread");
 	}
 
-	std::shared_ptr<PuppeteerThread> puppeteer = sscl::pptr::thread;
+	std::shared_ptr<PuppeteerThread> puppeteer = pptr::thread;
 
 	auto request = std::make_shared<ThreadLifetimeMgmtOp>(
 		puppeteer, selfPtr, callback);

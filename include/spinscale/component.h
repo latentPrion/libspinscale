@@ -2,8 +2,8 @@
 #define COMPONENT_H
 
 #include <config.h>
+#include <atomic>
 #include <memory>
-#include <functional>
 #include <spinscale/callback.h>
 #include <spinscale/puppetApplication.h>
 
@@ -40,13 +40,22 @@ class PuppetComponent
 :	public Component
 {
 public:
+	virtual void handleLoopExceptionHook() = 0;
+
 	PuppetComponent(
 		PuppetApplication &parent,
 		const std::shared_ptr<PuppetThread> &thread);
 	~PuppetComponent() = default;
 
+	static void defaultPuppetMain(const PuppetThread::EntryFnArguments &args);
+
 public:
 	PuppetApplication &parent;
+
+protected:
+	virtual void postJoltHook() {}
+	virtual void preLoopHook() {}
+	virtual void postLoopHook() {}
 };
 
 namespace pptr {
@@ -55,9 +64,25 @@ class PuppeteerComponent
 :	public Component
 {
 public:
+	virtual void handleLoopExceptionHook() = 0;
+
 	PuppeteerComponent(const std::shared_ptr<PuppeteerThread> &thread);
 	~PuppeteerComponent() = default;
+
+	static void defaultPuppeteerMain(
+		const PuppeteerThread::EntryFnArguments &args);
+
+protected:
+	virtual void postJoltHook() {}
+	virtual void tryBlock1Hook() {}
+	virtual void preLoopHook() {}
+	virtual void postLoopHook() {}
+	virtual void postTryBlock1CatchHook() {}
+	virtual void handleTryBlock1TypedException(const std::exception& e);
+	virtual void handleTryBlock1UnknownException();
 };
+
+extern std::atomic<int> exitCode;
 
 } // namespace pptr
 

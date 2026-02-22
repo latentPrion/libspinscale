@@ -1,4 +1,4 @@
-#include <spinscale/marionette.h>
+#include <spinscale/runtime.h>
 
 namespace sscl {
 

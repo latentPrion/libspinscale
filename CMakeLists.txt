@@ -75,6 +75,7 @@ add_library(spinscale SHARED
 	src/lockerAndInvokerBase.cpp
 	src/componentThread.cpp
 	src/component.cpp
+	src/puppeteerComponent.cpp
 	src/puppetApplication.cpp
 	src/runtime.cpp
 	src/callableTracer.cpp
