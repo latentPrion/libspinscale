@@ -33,15 +33,12 @@ typedef uint8_t ThreadId;
 class ComponentThread
 {
 protected:
-	ComponentThread(ThreadId _id)
-    : id(_id), name(getThreadName(_id)), work(io_service)
+	ComponentThread(ThreadId _id, std::string _name)
+	:	id(_id), name(std::move(_name)), work(io_service)
 	{}
 
 public:
 	virtual ~ComponentThread() = default;
-
-	// getThreadName implementation is provided by application code
-	static std::string getThreadName(ThreadId id);
 
 	void cleanup(void);
 
@@ -96,10 +93,11 @@ public:
 	using entryPointFn = std::function<void(const EntryFnArguments &)>;
 
 	PuppeteerThread(
-		ThreadId id, entryPointFn entryPoint,
+		ThreadId id, std::string name,
+		entryPointFn entryPoint,
 		pptr::PuppeteerComponent &component,
 		preJoltHookFn preJoltFn)
-	:	ComponentThread(id),
+	:	ComponentThread(id, std::move(name)),
 	entryFnArguments(*this, component, preJoltFn),
 	thread(std::move(entryPoint), std::cref(entryFnArguments))
 	{}
@@ -148,9 +146,10 @@ public:
 	};
 
 	PuppetThread(
-		ThreadId _id, entryPointFn entryPoint, PuppetComponent &component,
+		ThreadId _id, std::string name,
+		entryPointFn entryPoint, PuppetComponent &component,
 		preJoltHookFn preJoltFn)
-	:	ComponentThread(_id),
+	:	ComponentThread(_id, std::move(name)),
 	pinnedCpuId(-1),
 	pause_work(pause_io_service),
 	entryFnArguments(*this, component, preJoltFn),
