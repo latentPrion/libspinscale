@@ -370,11 +370,11 @@ void Qutex::release()
 	 *
 	 * Therefore we must always awaken the front item when releas()ing.
 	 */
-	LockerAndInvokerBase &front = *queue.front();
+	std::shared_ptr<LockerAndInvokerBase> front = queue.front();
 
 	lock.release();
 
-	front.awaken();
+	front->awaken();
 }
 
 } // namespace sscl
