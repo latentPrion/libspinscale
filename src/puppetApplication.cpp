@@ -197,7 +197,7 @@ void PuppetApplication::exitAllPuppetThreadsReq(
 	{
 		thread->exitThreadReq(
 			{request, std::bind(
-				&PuppetThreadLifetimeMgmtOp::executeGenericOpOnAllPuppetThreadsReq1,
+				&PuppetThreadLifetimeMgmtOp::exitAllPuppetThreadsReq1,
 				request.get(), request)});
 	}
 }
