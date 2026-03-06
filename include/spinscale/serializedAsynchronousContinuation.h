@@ -47,7 +47,8 @@ public:
 	// Return list of all qutexes in predecessors' LockSets; excludes self.
 	[[nodiscard]]
 	std::unique_ptr<std::forward_list<std::reference_wrapper<Qutex>>>
-	getAcquiredQutexHistory() const;
+	getAcquiredQutexHistory(
+		bool includeLocksWhichHaveBeenReleased = false) const;
 
 	/**
 	 * @brief Release a specific qutex early
@@ -276,8 +277,8 @@ public:
 
 template <class OriginalCbFnT>
 std::unique_ptr<std::forward_list<std::reference_wrapper<Qutex>>>
-SerializedAsynchronousContinuation<OriginalCbFnT>::getAcquiredQutexHistory()
-const
+SerializedAsynchronousContinuation<OriginalCbFnT>::getAcquiredQutexHistory(
+	bool includeLocksWhichHaveBeenReleased) const
 {
 	auto heldLocks = std::make_unique<
 		std::forward_list<std::reference_wrapper<Qutex>>>();
@@ -297,12 +298,18 @@ const
 		auto heldLockSet = currContin->getLockSet();
 		if (!heldLockSet.has_value()) { continue; }
 
-		// Add this continuation's locks to the held locks list
-		for (size_t i = 0; i < heldLockSet->get().locks.size(); ++i)
-		{
-			heldLocks->push_front(heldLockSet->get().locks[i].qutex);
+			// Add this continuation's locks to the held locks list
+			for (size_t i = 0; i < heldLockSet->get().locks.size(); ++i)
+			{
+				if (!includeLocksWhichHaveBeenReleased
+					&& heldLockSet->get().locks[i].hasBeenReleased)
+				{
+					continue;
+				}
+
+				heldLocks->push_front(heldLockSet->get().locks[i].qutex);
+			}
 		}
-	}
 
 	return heldLocks;
 }
