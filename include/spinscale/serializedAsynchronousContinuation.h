@@ -335,16 +335,17 @@ SerializedAsynchronousContinuation<OriginalCbFnT>
 		auto heldLockSet = currContin->getLockSet();
 		if (!heldLockSet.has_value()) { continue; }
 
-		// Check if the firstFailedQutex is in this continuation's LockSet
-		try {
-			heldLockSet->get().getLockUsageDesc(firstFailedQutex);
-		} catch (const std::runtime_error& e) {
-			std::cerr << __func__ << ": " << e.what() << std::endl;
-			continue;
-		}
+			// A miss is expected here; only a hit indicates a potential deadlock.
+			auto lockUsageDesc = heldLockSet->get().findLockUsageDesc(
+				firstFailedQutex);
+			if (!lockUsageDesc.has_value()
+				|| lockUsageDesc->get().hasBeenReleased)
+			{
+				continue;
+			}
 
-		std::cout << __func__ << ":Deadlock detected: Found "
-			<< "firstFailedQutex @" << &firstFailedQutex
+			std::cout << __func__ << ":Deadlock detected: Found "
+				<< "firstFailedQutex @" << &firstFailedQutex
 			<< " (" << firstFailedQutex.name << ") in LockSet of "
 			<< "SerializedAsynchronousContinuation @"
 			<< currContin.get() << std::endl;
@@ -434,25 +435,21 @@ SerializedAsynchronousContinuation<OriginalCbFnT>
 			auto heldLockSet = currContin->getLockSet();
 			if (!heldLockSet.has_value()) { continue; }
 
-			// Check if this continuation holds the foreign lock
-			try {
-				const auto& lockUsageDesc = heldLockSet
-					->get().getLockUsageDesc(foreignLock);
+			// A miss is expected here; a hit indicates a potential gridlock.
+			auto lockUsageDesc = heldLockSet->get().findLockUsageDesc(
+				foreignLock);
+			if (!lockUsageDesc.has_value()) { continue; }
 
-				// Matched! We hold a lock that the foreign owner is waiting for
-				std::cout << __func__ << ": Gridlock detected: We hold lock @"
-					<< &foreignLock << " (" << foreignLock.name << ") in "
-					"continuation @" << currContin.get()
-					<< ", while foreign owner @" << &foreignOwner
+			// Matched! We hold a lock that the foreign owner is waiting for
+			std::cout << __func__ << ": Gridlock detected: We hold lock @"
+				<< &foreignLock << " (" << foreignLock.name << ") in "
+				"continuation @" << currContin.get()
+				<< ", while foreign owner @" << &foreignOwner
 				<< " holds lock @" << &firstFailedQutex << " ("
 				<< firstFailedQutex.name << ") that we're waiting for"
 				<< std::endl;
 
-				return true;
-			} catch (const std::runtime_error& e) {
-				// This continuation doesn't hold the foreign lock. Continue.
-				continue;
-			}
+			return true;
 		}
 	}
 

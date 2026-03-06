@@ -197,13 +197,50 @@ public:
 		allLocksAcquired = false;
 	}
 
-	const LockUsageDesc &getLockUsageDesc(const Qutex &criterionLock) const
+	std::optional<std::reference_wrapper<LockUsageDesc>>
+	findLockUsageDesc(const Qutex &criterionLock)
 	{
 		for (auto& lockUsageDesc : locks)
 		{
 			if (&lockUsageDesc.qutex.get() == &criterionLock) {
-				return lockUsageDesc;
+				return std::ref(lockUsageDesc);
 			}
+		}
+
+		return std::nullopt;
+	}
+
+	std::optional<std::reference_wrapper<const LockUsageDesc>>
+	findLockUsageDesc(const Qutex &criterionLock) const
+	{
+		for (const auto& lockUsageDesc : locks)
+		{
+			if (&lockUsageDesc.qutex.get() == &criterionLock) {
+				return std::cref(lockUsageDesc);
+			}
+		}
+
+		return std::nullopt;
+	}
+
+	LockUsageDesc &getLockUsageDesc(const Qutex &criterionLock)
+	{
+		auto lockUsageDesc = findLockUsageDesc(criterionLock);
+		if (lockUsageDesc.has_value()) {
+			return lockUsageDesc->get();
+		}
+
+		// Should never happen if the LockSet is properly constructed
+		throw std::runtime_error(
+			std::string(__func__) +
+			": Qutex not found in this LockSet");
+	}
+
+	const LockUsageDesc &getLockUsageDesc(const Qutex &criterionLock) const
+	{
+		auto lockUsageDesc = findLockUsageDesc(criterionLock);
+		if (lockUsageDesc.has_value()) {
+			return lockUsageDesc->get();
 		}
 
 		// Should never happen if the LockSet is properly constructed
@@ -225,8 +262,7 @@ public:
 				": LockSet::releaseQutexEarly() called but allLocksAcquired is false");
 		}
 
-		auto& lockUsageDesc = const_cast<LockUsageDesc&>(
-			getLockUsageDesc(qutex));
+		auto& lockUsageDesc = getLockUsageDesc(qutex);
 
 		if (!lockUsageDesc.hasBeenReleased)
 		{
