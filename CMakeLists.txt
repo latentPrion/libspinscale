@@ -81,6 +81,11 @@ add_library(spinscale SHARED
 	src/callableTracer.cpp
 )
 
+set_target_properties(spinscale PROPERTIES
+	VERSION ${PROJECT_VERSION}
+	SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
 # Conditionally add qutexAcquisitionHistoryTracker.cpp only when debug locks
 # are enabled, since the tracker is only referenced under CONFIG_ENABLE_DEBUG_LOCKS.
 if(ENABLE_DEBUG_LOCKS)
@@ -127,29 +132,29 @@ endif()
 # Install rules
 install(TARGETS spinscale
 	EXPORT spinscaleTargets
-	LIBRARY DESTINATION lib
-	ARCHIVE DESTINATION lib
-	RUNTIME DESTINATION bin
+	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} NAMELINK_SKIP
+	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 install(DIRECTORY include/spinscale
-	DESTINATION include
+	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 	FILES_MATCHING PATTERN "*.h"
 )
 
 install(FILES include/boostAsioLinkageFix.h
-	DESTINATION include
+	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/config.h
-	DESTINATION include
+	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Install CMake config files for find_package() support
 install(EXPORT spinscaleTargets
 	FILE spinscaleTargets.cmake
 	NAMESPACE spinscale::
-	DESTINATION lib/cmake/spinscale
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spinscale
 )
 
 # Create config file for find_package()
@@ -158,7 +163,7 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/spinscaleConfig.cmake.in
 	${CMAKE_CURRENT_BINARY_DIR}/spinscaleConfig.cmake
-	INSTALL_DESTINATION lib/cmake/spinscale
+	INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spinscale
 )
 
 write_basic_package_version_file(
@@ -170,5 +175,5 @@ write_basic_package_version_file(
 install(FILES
 	${CMAKE_CURRENT_BINARY_DIR}/spinscaleConfig.cmake
 	${CMAKE_CURRENT_BINARY_DIR}/spinscaleConfigVersion.cmake
-	DESTINATION lib/cmake/spinscale
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spinscale
 )
