@@ -34,7 +34,7 @@ class ComponentThread
 {
 protected:
 	ComponentThread(ThreadId _id, std::string _name)
-	:	id(_id), name(std::move(_name)), work(io_service)
+	: id(_id), name(std::move(_name)), work(io_service), keepLooping(true)
 	{}
 
 public:
