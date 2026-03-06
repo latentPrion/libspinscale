@@ -253,7 +253,7 @@ void Qutex::backoff(
 #ifdef CONFIG_ENABLE_DEBUG_LOCKS
 	currOwner = nullptr;
 #endif
-	LockerAndInvokerBase &newFront = *queue.front();
+	std::shared_ptr<LockerAndInvokerBase> newFront = queue.front();
 
 	lock.release();
 
@@ -268,7 +268,7 @@ void Qutex::backoff(
 	 * Hence there ought to be no way for the failedAcquirer to be at the front
 	 * of the queue at this point UNLESS the queue has only one item in it.
 	 */
-	if (newFront == failedAcquirer && nQItems > 1)
+	if (*newFront == failedAcquirer && nQItems > 1)
 	{
 		throw std::runtime_error(
 			std::string(__func__) +
@@ -304,7 +304,7 @@ void Qutex::backoff(
 	 * is backing off of a qutex within which it's the only waiter.
 	 */
 	if (nQItems > 1) {
-		newFront.awaken();
+		newFront->awaken();
 	}
 }
 
