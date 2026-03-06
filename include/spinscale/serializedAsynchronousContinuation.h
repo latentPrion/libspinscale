@@ -26,8 +26,15 @@ public:
 		Callback<OriginalCbFnT> originalCbFn,
 		std::vector<std::reference_wrapper<Qutex>> requiredLocks)
 	:	PostedAsynchronousContinuation<OriginalCbFnT>(caller, originalCbFn),
-		requiredLocks(*this, std::move(requiredLocks))
+		requiredLocks(std::move(requiredLocks))
 	{}
+
+	std::optional<std::reference_wrapper<const LockSet>>
+	getLockSet() const override
+		{ return std::cref(requiredLocks); }
+
+	std::optional<std::reference_wrapper<LockSet>> getLockSet() override
+		{ return std::ref(requiredLocks); }
 
 	template<typename... Args>
 	void callOriginalCb(Args&&... args)
@@ -50,7 +57,7 @@ public:
 		{ requiredLocks.releaseQutexEarly(qutex); }
 
 public:
-	LockSet<OriginalCbFnT> requiredLocks;
+	LockSet requiredLocks;
 	std::atomic<bool> isAwakeOrBeingAwakened{false};
 
 	/**
@@ -284,18 +291,16 @@ const
 	 */
 	for (std::shared_ptr<AsynchronousContinuationChainLink> currContin =
 			this->getCallersContinuationShPtr();
-		 currContin != nullptr;
-		 currContin = currContin->getCallersContinuationShPtr())
+		currContin != nullptr;
+		currContin = currContin->getCallersContinuationShPtr())
 	{
-		auto serializedCont = std::dynamic_pointer_cast<
-			SerializedAsynchronousContinuation<OriginalCbFnT>>(currContin);
-
-		if (serializedCont == nullptr) { continue; }
+		auto heldLockSet = currContin->getLockSet();
+		if (!heldLockSet.has_value()) { continue; }
 
 		// Add this continuation's locks to the held locks list
-		for (size_t i = 0; i < serializedCont->requiredLocks.locks.size(); ++i)
+		for (size_t i = 0; i < heldLockSet->get().locks.size(); ++i)
 		{
-			heldLocks->push_front(serializedCont->requiredLocks.locks[i].qutex);
+			heldLocks->push_front(heldLockSet->get().locks[i].qutex);
 		}
 	}
 
@@ -327,14 +332,12 @@ SerializedAsynchronousContinuation<OriginalCbFnT>
 		currContin != nullptr;
 		currContin = currContin->getCallersContinuationShPtr())
 	{
-		auto serializedCont = std::dynamic_pointer_cast<
-			SerializedAsynchronousContinuation<OriginalCbFnT>>(currContin);
-
-		if (serializedCont == nullptr) { continue; }
+		auto heldLockSet = currContin->getLockSet();
+		if (!heldLockSet.has_value()) { continue; }
 
 		// Check if the firstFailedQutex is in this continuation's LockSet
 		try {
-			serializedCont->requiredLocks.getLockUsageDesc(firstFailedQutex);
+			heldLockSet->get().getLockUsageDesc(firstFailedQutex);
 		} catch (const std::runtime_error& e) {
 			std::cerr << __func__ << ": " << e.what() << std::endl;
 			continue;
@@ -344,7 +347,7 @@ SerializedAsynchronousContinuation<OriginalCbFnT>
 			<< "firstFailedQutex @" << &firstFailedQutex
 			<< " (" << firstFailedQutex.name << ") in LockSet of "
 			<< "SerializedAsynchronousContinuation @"
-			<< serializedCont.get() << std::endl;
+			<< currContin.get() << std::endl;
 
 		return true;
 	}
@@ -425,27 +428,25 @@ SerializedAsynchronousContinuation<OriginalCbFnT>
 		 */
 		for (std::shared_ptr<AsynchronousContinuationChainLink> currContin =
 				this->serializedContinuation.getCallersContinuationShPtr();
-			 currContin != nullptr;
-			 currContin = currContin->getCallersContinuationShPtr())
+			currContin != nullptr;
+			currContin = currContin->getCallersContinuationShPtr())
 		{
-			auto serializedCont = std::dynamic_pointer_cast<
-				SerializedAsynchronousContinuation<OriginalCbFnT>>(currContin);
-
-			if (serializedCont == nullptr) { continue; }
+			auto heldLockSet = currContin->getLockSet();
+			if (!heldLockSet.has_value()) { continue; }
 
 			// Check if this continuation holds the foreign lock
 			try {
-				const auto& lockUsageDesc = serializedCont->requiredLocks
-					.getLockUsageDesc(foreignLock);
+				const auto& lockUsageDesc = heldLockSet
+					->get().getLockUsageDesc(foreignLock);
 
 				// Matched! We hold a lock that the foreign owner is waiting for
 				std::cout << __func__ << ": Gridlock detected: We hold lock @"
 					<< &foreignLock << " (" << foreignLock.name << ") in "
-					"continuation @" << serializedCont.get()
+					"continuation @" << currContin.get()
 					<< ", while foreign owner @" << &foreignOwner
-					<< " holds lock @" << &firstFailedQutex << " ("
-					<< firstFailedQutex.name << ") that we're waiting for"
-					<< std::endl;
+				<< " holds lock @" << &firstFailedQutex << " ("
+				<< firstFailedQutex.name << ") that we're waiting for"
+				<< std::endl;
 
 				return true;
 			} catch (const std::runtime_error& e) {

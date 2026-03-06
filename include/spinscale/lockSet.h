@@ -11,15 +11,11 @@
 
 namespace sscl {
 
-// Forward declarations
-template <class OriginalCbFnT>
-class SerializedAsynchronousContinuation;
 class Qutex;
 
 /**
  * @brief LockSet - Manages a collection of locks for acquisition/release
  */
-template <class OriginalCbFnT>
 class LockSet
 {
 public:
@@ -44,15 +40,10 @@ public:
 public:
 	/**
 	 * @brief Constructor
-	 * @param parentContinuation Reference to the parent
-	 * 	SerializedAsynchronousContinuation
 	 * @param qutexes Vector of Qutex references that must be acquired
 	 */
-	LockSet(
-		SerializedAsynchronousContinuation<OriginalCbFnT> &parentContinuation,
-		std::vector<std::reference_wrapper<Qutex>> qutexes = {})
-	: parentContinuation(parentContinuation), allLocksAcquired(false),
-	registeredInQutexQueues(false)
+	explicit LockSet(std::vector<std::reference_wrapper<Qutex>> qutexes = {})
+	: allLocksAcquired(false), registeredInQutexQueues(false)
 	{
 		/* Convert Qutex references to LockUsageDesc (iterators will be filled
 		 * in during registration)
@@ -131,7 +122,6 @@ public:
 	bool tryAcquireOrBackOff(
 		LockerAndInvokerBase &lockvoker,
 		std::optional<std::reference_wrapper<Qutex>> &firstFailedQutex
-			= std::nullopt
 		)
 	{
 		if (!registeredInQutexQueues)
@@ -251,7 +241,6 @@ public:
 	std::vector<LockUsageDesc> locks;
 
 private:
-	SerializedAsynchronousContinuation<OriginalCbFnT> &parentContinuation;
 	bool allLocksAcquired, registeredInQutexQueues;
 };
 

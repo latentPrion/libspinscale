@@ -1,7 +1,11 @@
 #ifndef ASYNCHRONOUS_CONTINUATION_CHAIN_LINK_H
 #define ASYNCHRONOUS_CONTINUATION_CHAIN_LINK_H
 
+#include <functional>
 #include <memory>
+#include <optional>
+#include <vector>
+#include <spinscale/lockSet.h>
 
 namespace sscl {
 
@@ -21,10 +25,17 @@ class AsynchronousContinuationChainLink
 :	public std::enable_shared_from_this<AsynchronousContinuationChainLink>
 {
 public:
-    virtual ~AsynchronousContinuationChainLink() = default;
+	virtual ~AsynchronousContinuationChainLink() = default;
 
 	virtual std::shared_ptr<AsynchronousContinuationChainLink>
 	getCallersContinuationShPtr() const = 0;
+
+	virtual std::optional<std::reference_wrapper<const LockSet>>
+	getLockSet() const
+		{ return std::nullopt; }
+
+	virtual std::optional<std::reference_wrapper<LockSet>> getLockSet()
+		{ return std::nullopt; }
 };
 
 } // namespace sscl
