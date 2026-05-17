@@ -4,7 +4,7 @@
 #include <config.h>
 #include <atomic>
 #include <memory>
-#include <spinscale/callback.h>
+#include <spinscale/cps/callback.h>
 #include <spinscale/puppetApplication.h>
 
 namespace sscl {

@@ -1,7 +1,7 @@
-#include <spinscale/callableTracer.h>
+#include <spinscale/cps/callableTracer.h>
 
-namespace sscl {
+namespace sscl::cps {
 
 bool CallableTracer::optTraceCallables = false;
 
-} // namespace sscl
+} // namespace sscl::cps

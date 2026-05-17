@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <spinscale/componentThread.h>
 
-namespace sscl {
+namespace sscl::cps {
 
 /**
  * @brief CallableTracer - Wraps callables with metadata for debugging
@@ -49,8 +49,8 @@ public:
 		if (optTraceCallables)
 		{
 			std::cout << "" << __func__ << ": On thread "
-				<< (ComponentThread::tlsInitialized()
-					? ComponentThread::getSelf()->name : "<TLS un-init'ed>")
+				<< (sscl::ComponentThread::tlsInitialized()
+					? sscl::ComponentThread::getSelf()->name : "<TLS un-init'ed>")
 					<< ": Calling callable posted by:\n"
 				<< "\t" << callerFuncName << "\n\tat line " << (int)callerLine
 				<< " return addr 0: " << returnAddr0
@@ -79,7 +79,7 @@ private:
 	std::function<void()> callable;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 /**
  * @brief STC - SMO Traceable Callable macro
@@ -109,7 +109,7 @@ private:
 		// e.g., "void smo::SomeClass::method(int, int)"
 		// __builtin_return_address(0) = direct caller
 		// __builtin_return_address(1) = caller before that
-		#define STC(arg) sscl::CallableTracer( \
+		#define STC(arg) sscl::cps::CallableTracer( \
 			__PRETTY_FUNCTION__, \
 			__LINE__, \
 			__builtin_return_address(0), \
@@ -120,7 +120,7 @@ private:
 		// e.g., "void __cdecl smo::SomeClass::method(int, int)"
 		// _ReturnAddress() = direct caller (only one level available)
 		#include <intrin.h>
-		#define STC(arg) sscl::CallableTracer( \
+		#define STC(arg) sscl::cps::CallableTracer( \
 			__FUNCSIG__, \
 			__LINE__, \
 			_ReturnAddress(), \
@@ -129,7 +129,7 @@ private:
 	#else
 		// Fallback to standard __func__ (unqualified name only)
 		// No return address support
-		#define STC(arg) sscl::CallableTracer( \
+		#define STC(arg) sscl::cps::CallableTracer( \
 			__func__, \
 			__LINE__, \
 			nullptr, \

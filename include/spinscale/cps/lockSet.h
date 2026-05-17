@@ -6,10 +6,10 @@
 #include <utility>
 #include <memory>
 #include <optional>
-#include <spinscale/qutex.h>
-#include <spinscale/lockerAndInvokerBase.h>
+#include <spinscale/cps/qutex.h>
+#include <spinscale/cps/lockerAndInvokerBase.h>
 
-namespace sscl {
+namespace sscl::cps {
 
 class Qutex;
 
@@ -280,6 +280,6 @@ private:
 	bool allLocksAcquired, registeredInQutexQueues;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // LOCK_SET_H

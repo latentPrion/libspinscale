@@ -3,7 +3,7 @@
 
 #include <memory>
 
-namespace sscl {
+namespace sscl::cps {
 
 // Forward declaration
 class AsynchronousContinuationChainLink;
@@ -26,6 +26,6 @@ public:
 	CbFnT callbackFn;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // SPINSCALE_CALLBACK_H

@@ -13,7 +13,7 @@
 #include <sched.h>
 #include <unistd.h>
 #include <memory>
-#include <spinscale/callback.h>
+#include <spinscale/cps/callback.h>
 #include <cstdint>
 #include <string>
 
@@ -162,10 +162,10 @@ public:
 
 	// Thread management methods
 	typedef std::function<void()> threadLifetimeMgmtOpCbFn;
-	void startThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback);
-	void exitThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback);
-	void pauseThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback);
-	void resumeThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback);
+	void startThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback);
+	void exitThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback);
+	void pauseThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback);
+	void resumeThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback);
 
 	/**
 	 * JOLTs this thread to begin processing after global initialization.
@@ -180,7 +180,7 @@ public:
 	 */
 	void joltThreadReq(
 		const std::shared_ptr<PuppetThread>& selfPtr,
-		Callback<threadLifetimeMgmtOpCbFn> callback);
+		cps::Callback<threadLifetimeMgmtOpCbFn> callback);
 
 	// CPU management methods
 	void pinToCpu(int cpuId);

@@ -6,9 +6,9 @@
 #include <memory>
 #include <string>
 #include <spinscale/spinLock.h>
-#include <spinscale/lockerAndInvokerBase.h>
+#include <spinscale/cps/lockerAndInvokerBase.h>
 
-namespace sscl {
+namespace sscl::cps {
 
 /**
  * @brief Qutex - Queue-based mutex for asynchronous lock management
@@ -97,11 +97,11 @@ public:
 	std::string name;
 	std::shared_ptr<LockerAndInvokerBase> currOwner;
 #endif
-	SpinLock lock;
+	sscl::SpinLock lock;
 	LockerAndInvokerBase::List queue;
 	bool isOwned;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // QUTEX_H

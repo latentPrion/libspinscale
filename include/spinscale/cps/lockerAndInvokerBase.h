@@ -4,7 +4,7 @@
 #include <list>
 #include <memory>
 
-namespace sscl {
+namespace sscl::cps {
 
 // Forward declaration
 class Qutex;
@@ -82,6 +82,6 @@ protected:
 	const void* serializedContinuationVaddr;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // LOCKER_AND_INVOKER_BASE_H

@@ -6,7 +6,7 @@
 #include <vector>
 #include <memory>
 
-namespace sscl {
+namespace sscl::cps {
 
 // Forward declarations
 class AsynchronousContinuationChainLink;
@@ -80,6 +80,6 @@ private:
 	AdjacencyList adjacencyList;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // DEPENDENCY_GRAPH_H

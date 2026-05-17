@@ -1,7 +1,7 @@
-#include <spinscale/qutex.h>
-#include <spinscale/lockerAndInvokerBase.h>
+#include <spinscale/cps/qutex.h>
+#include <spinscale/cps/lockerAndInvokerBase.h>
 
-namespace sscl {
+namespace sscl::cps {
 
 bool Qutex::tryAcquire(
 	const LockerAndInvokerBase &tryingLockvoker, int nRequiredLocks
@@ -377,4 +377,4 @@ void Qutex::release()
 	front->awaken();
 }
 
-} // namespace sscl
+} // namespace sscl::cps

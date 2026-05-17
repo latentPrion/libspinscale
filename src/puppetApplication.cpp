@@ -1,7 +1,7 @@
 #include <iostream>
-#include <spinscale/asynchronousContinuation.h>
+#include <spinscale/cps/asynchronousContinuation.h>
 #include <spinscale/asynchronousLoop.h>
-#include <spinscale/callback.h>
+#include <spinscale/cps/callback.h>
 #include <spinscale/puppetApplication.h>
 #include <spinscale/componentThread.h>
 
@@ -14,13 +14,13 @@ PuppetApplication::PuppetApplication(
 }
 
 class PuppetApplication::PuppetThreadLifetimeMgmtOp
-:	public NonPostedAsynchronousContinuation<puppetThreadLifetimeMgmtOpCbFn>
+:	public cps::NonPostedAsynchronousContinuation<puppetThreadLifetimeMgmtOpCbFn>
 {
 public:
 	PuppetThreadLifetimeMgmtOp(
 		PuppetApplication &parent, unsigned int nThreads,
-		Callback<puppetThreadLifetimeMgmtOpCbFn> callback)
-	:	NonPostedAsynchronousContinuation<puppetThreadLifetimeMgmtOpCbFn>(callback),
+		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback)
+	:	cps::NonPostedAsynchronousContinuation<puppetThreadLifetimeMgmtOpCbFn>(callback),
 	loop(nThreads),
 	parent(parent)
 	{}
@@ -73,7 +73,7 @@ public:
 };
 
 void PuppetApplication::joltAllPuppetThreadsReq(
-	Callback<puppetThreadLifetimeMgmtOpCbFn> callback
+	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
 	if (threadsHaveBeenJolted)
@@ -107,7 +107,7 @@ void PuppetApplication::joltAllPuppetThreadsReq(
 }
 
 void PuppetApplication::startAllPuppetThreadsReq(
-	Callback<puppetThreadLifetimeMgmtOpCbFn> callback
+	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
 	// If no threads, call callback immediately
@@ -131,7 +131,7 @@ void PuppetApplication::startAllPuppetThreadsReq(
 }
 
 void PuppetApplication::pauseAllPuppetThreadsReq(
-	Callback<puppetThreadLifetimeMgmtOpCbFn> callback
+	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
 	// If no threads, call callback immediately
@@ -155,7 +155,7 @@ void PuppetApplication::pauseAllPuppetThreadsReq(
 }
 
 void PuppetApplication::resumeAllPuppetThreadsReq(
-	Callback<puppetThreadLifetimeMgmtOpCbFn> callback
+	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
 	// If no threads, call callback immediately
@@ -179,7 +179,7 @@ void PuppetApplication::resumeAllPuppetThreadsReq(
 }
 
 void PuppetApplication::exitAllPuppetThreadsReq(
-	Callback<puppetThreadLifetimeMgmtOpCbFn> callback
+	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
 	// If no threads, call callback immediately

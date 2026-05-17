@@ -5,12 +5,12 @@
 #include <memory>
 #include <exception>
 #include <spinscale/componentThread.h>
-#include <spinscale/callback.h>
-#include <spinscale/callableTracer.h>
-#include <spinscale/asynchronousContinuationChainLink.h>
+#include <spinscale/cps/callback.h>
+#include <spinscale/cps/callableTracer.h>
+#include <spinscale/cps/asynchronousContinuationChainLink.h>
 
 
-namespace sscl {
+namespace sscl::cps {
 
 /**
  * AsynchronousContinuation - Template base class for async sequence management
@@ -129,7 +129,7 @@ class PostedAsynchronousContinuation
 {
 public:
 	PostedAsynchronousContinuation(
-		const std::shared_ptr<ComponentThread> &caller,
+		const std::shared_ptr<sscl::ComponentThread> &caller,
 		Callback<OriginalCbFnT> originalCbFn)
 	:	AsynchronousContinuation<OriginalCbFnT>(originalCbFn),
 	caller(caller)
@@ -150,9 +150,9 @@ public:
 	}
 
 public:
-	std::shared_ptr<ComponentThread> caller;
+	std::shared_ptr<sscl::ComponentThread> caller;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // ASYNCHRONOUS_CONTINUATION_H

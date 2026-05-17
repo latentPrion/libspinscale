@@ -5,7 +5,7 @@
 #include <atomic>
 #include <boost/asio/io_service.hpp>
 
-namespace sscl {
+namespace sscl::cps {
 
 class AsynchronousBridge
 {
@@ -53,6 +53,6 @@ private:
 	boost::asio::io_service &io_service;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // ASYNCHRONOUS_BRIDGE_H

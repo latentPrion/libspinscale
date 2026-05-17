@@ -5,9 +5,9 @@
 #include <pthread.h>
 #include <sched.h>
 #include <boost/asio/io_service.hpp>
-#include <spinscale/asynchronousContinuation.h>
-#include <spinscale/callback.h>
-#include <spinscale/callableTracer.h>
+#include <spinscale/cps/asynchronousContinuation.h>
+#include <spinscale/cps/callback.h>
+#include <spinscale/cps/callableTracer.h>
 #include <spinscale/component.h>
 #include <spinscale/componentThread.h>
 
@@ -79,14 +79,14 @@ const std::shared_ptr<ComponentThread> ComponentThread::getSelf(void)
 }
 
 class PuppetThread::ThreadLifetimeMgmtOp
-:	public PostedAsynchronousContinuation<threadLifetimeMgmtOpCbFn>
+:	public cps::PostedAsynchronousContinuation<threadLifetimeMgmtOpCbFn>
 {
 public:
 	ThreadLifetimeMgmtOp(
 		const std::shared_ptr<ComponentThread> &caller,
 		const std::shared_ptr<PuppetThread> &target,
-		Callback<threadLifetimeMgmtOpCbFn> callback)
-	:	PostedAsynchronousContinuation<threadLifetimeMgmtOpCbFn>(
+		cps::Callback<threadLifetimeMgmtOpCbFn> callback)
+	:	cps::PostedAsynchronousContinuation<threadLifetimeMgmtOpCbFn>(
 			caller, callback),
 	target(target)
 	{}
@@ -181,7 +181,7 @@ void ComponentThread::cleanup(void)
 
 void PuppetThread::joltThreadReq(
 	const std::shared_ptr<PuppetThread>& selfPtr,
-	Callback<threadLifetimeMgmtOpCbFn> callback)
+	cps::Callback<threadLifetimeMgmtOpCbFn> callback)
 {
 	/**	EXPLANATION:
 	 * We can't use shared_from_this() here because JOLTing occurs prior to
@@ -216,7 +216,7 @@ void PuppetThread::joltThreadReq(
 }
 
 // Thread management method implementations
-void PuppetThread::startThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
+void PuppetThread::startThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback)
 {
 	std::shared_ptr<ComponentThread> caller = getSelf();
 	auto request = std::make_shared<ThreadLifetimeMgmtOp>(
@@ -229,7 +229,7 @@ void PuppetThread::startThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
 			request.get(), request)));
 }
 
-void PuppetThread::exitThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
+void PuppetThread::exitThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback)
 {
 	std::shared_ptr<ComponentThread> caller = getSelf();
 	auto request = std::make_shared<ThreadLifetimeMgmtOp>(
@@ -247,7 +247,7 @@ void PuppetThread::exitThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
 			request.get(), request)));
 }
 
-void PuppetThread::pauseThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
+void PuppetThread::pauseThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback)
 {
 	if (id == sscl::pptr::puppeteerThreadId)
 	{
@@ -266,7 +266,7 @@ void PuppetThread::pauseThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
 			request.get(), request)));
 }
 
-void PuppetThread::resumeThreadReq(Callback<threadLifetimeMgmtOpCbFn> callback)
+void PuppetThread::resumeThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback)
 {
 	if (id == sscl::pptr::puppeteerThreadId)
 	{

@@ -1,5 +1,5 @@
-#include <spinscale/lockerAndInvokerBase.h>
+#include <spinscale/cps/lockerAndInvokerBase.h>
 
-namespace sscl {
+namespace sscl::cps {
 
-} // namespace sscl
+} // namespace sscl::cps

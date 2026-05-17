@@ -5,7 +5,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
-#include <spinscale/callback.h>
+#include <spinscale/cps/callback.h>
 #include <spinscale/componentThread.h>
 
 namespace sscl {
@@ -21,15 +21,15 @@ public:
 	// Thread management methods
 	typedef std::function<void()> puppetThreadLifetimeMgmtOpCbFn;
 	void joltAllPuppetThreadsReq(
-		Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
+		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
 	void startAllPuppetThreadsReq(
-		Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
+		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
 	void pauseAllPuppetThreadsReq(
-		Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
+		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
 	void resumeAllPuppetThreadsReq(
-		Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
+		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
 	void exitAllPuppetThreadsReq(
-		Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
+		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
 
 	// CPU distribution method
 	void distributeAndPinThreadsAcrossCpus();

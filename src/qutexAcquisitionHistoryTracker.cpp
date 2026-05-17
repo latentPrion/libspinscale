@@ -1,14 +1,14 @@
-#include <spinscale/qutexAcquisitionHistoryTracker.h>
-#include <spinscale/serializedAsynchronousContinuation.h>
-#include <spinscale/qutex.h>
-#include <spinscale/dependencyGraph.h>
+#include <spinscale/cps/qutexAcquisitionHistoryTracker.h>
+#include <spinscale/cps/serializedAsynchronousContinuation.h>
+#include <spinscale/cps/qutex.h>
+#include <spinscale/cps/dependencyGraph.h>
 #include <memory>
 #include <forward_list>
 #include <functional>
 #include <iostream>
 #include <algorithm>
 
-namespace sscl {
+namespace sscl::cps {
 
 void DependencyGraph::addNode(const Node& node)
 {
@@ -390,4 +390,4 @@ bool QutexAcquisitionHistoryTracker
 	return true;
 }
 
-} // namespace sscl
+} // namespace sscl::cps

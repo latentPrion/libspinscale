@@ -8,13 +8,13 @@
 #include <iostream>
 #include <optional>
 #include <spinscale/componentThread.h>
-#include <spinscale/lockSet.h>
-#include <spinscale/asynchronousContinuation.h>
-#include <spinscale/lockerAndInvokerBase.h>
-#include <spinscale/callback.h>
-#include <spinscale/qutexAcquisitionHistoryTracker.h>
+#include <spinscale/cps/lockSet.h>
+#include <spinscale/cps/asynchronousContinuation.h>
+#include <spinscale/cps/lockerAndInvokerBase.h>
+#include <spinscale/cps/callback.h>
+#include <spinscale/cps/qutexAcquisitionHistoryTracker.h>
 
-namespace sscl {
+namespace sscl::cps {
 
 template <class OriginalCbFnT>
 class SerializedAsynchronousContinuation
@@ -22,7 +22,7 @@ class SerializedAsynchronousContinuation
 {
 public:
 	SerializedAsynchronousContinuation(
-		const std::shared_ptr<ComponentThread> &caller,
+		const std::shared_ptr<sscl::ComponentThread> &caller,
 		Callback<OriginalCbFnT> originalCbFn,
 		std::vector<std::reference_wrapper<Qutex>> requiredLocks)
 	:	PostedAsynchronousContinuation<OriginalCbFnT>(caller, originalCbFn),
@@ -83,7 +83,7 @@ public:
 		LockerAndInvoker(
 			SerializedAsynchronousContinuation<OriginalCbFnT>
 				&serializedContinuation,
-			const std::shared_ptr<ComponentThread>& target,
+			const std::shared_ptr<sscl::ComponentThread>& target,
 			InvocationTargetT invocationTarget)
 		:	LockerAndInvokerBase(&serializedContinuation),
 #ifdef CONFIG_ENABLE_DEBUG_LOCKS
@@ -266,7 +266,7 @@ public:
 #endif
 		SerializedAsynchronousContinuation<OriginalCbFnT>
 			&serializedContinuation;
-		std::shared_ptr<ComponentThread> target;
+		std::shared_ptr<sscl::ComponentThread> target;
 		InvocationTargetT invocationTarget;
 	};
 };
@@ -470,7 +470,7 @@ template <class InvocationTargetT>
 void SerializedAsynchronousContinuation<OriginalCbFnT>
 ::LockerAndInvoker<InvocationTargetT>::operator()()
 {
-	if (ComponentThread::getSelf() != target)
+	if (sscl::ComponentThread::getSelf() != target)
 	{
 		throw std::runtime_error(
 			"LockerAndInvoker::operator(): Thread safety violation - "
@@ -588,6 +588,6 @@ void SerializedAsynchronousContinuation<OriginalCbFnT>
 	invocationTarget();
 }
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // SERIALIZED_ASYNCHRONOUS_CONTINUATION_H

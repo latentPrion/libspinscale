@@ -4,10 +4,10 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <vector>
-#include <spinscale/lockSet.h>
 
-namespace sscl {
+namespace sscl::cps {
+
+class LockSet;
 
 /**
  * @brief Base class for all asynchronous continuation chain links
@@ -38,6 +38,6 @@ public:
 		{ return std::nullopt; }
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // ASYNCHRONOUS_CONTINUATION_CHAIN_LINK_H

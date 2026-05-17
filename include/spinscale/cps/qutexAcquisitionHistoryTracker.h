@@ -5,10 +5,10 @@
 #include <memory>
 #include <forward_list>
 #include <functional>
-#include "spinLock.h"
+#include <spinscale/spinLock.h>
 
 
-namespace sscl {
+namespace sscl::cps {
 
 // Forward declarations
 class Qutex;
@@ -155,10 +155,10 @@ private:
 	 * Therefore, it's best to use a SpinLock on the history class to avoid
 	 * these coupling issues.
 	 */
-	SpinLock acquisitionHistoryLock;
+	sscl::SpinLock acquisitionHistoryLock;
 	AcquisitionHistoryMap acquisitionHistory;
 };
 
-} // namespace sscl
+} // namespace sscl::cps
 
 #endif // QUTEX_ACQUISITION_HISTORY_TRACKER_H
