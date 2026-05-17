@@ -3,6 +3,7 @@
 
 #include <config.h>
 #include <coroutine>
+#include <exception>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -59,26 +60,13 @@ struct NonViralNonSuspendingInvoker
 	using PostingInvoker<PostingPromiseTemplate<void>, void>::PostingInvoker;
 
 	bool await_ready() const noexcept
-	{
-#ifdef CONFIG_LIBSSCL_DEBUG_CO
-		std::cout << __func__ << ": " << std::this_thread::get_id() << " This shouldn't be called.\n";
-#endif
-		return true;
-	}
+		{ std::terminate(); }
 
 	void await_suspend(std::coroutine_handle<NonViralNonSuspendingInvoker<PostingPromiseTemplate>>) noexcept
-	{
-#ifdef CONFIG_LIBSSCL_DEBUG_CO
-		std::cout << __func__ << ": " << std::this_thread::get_id() << " This shouldn't be called.\n";
-#endif
-	}
+		{ std::terminate(); }
 
 	void await_resume() noexcept
-	{
-#ifdef CONFIG_LIBSSCL_DEBUG_CO
-		std::cout << __func__ << ": " << std::this_thread::get_id() << " This shouldn't be called.\n";
-#endif
-	}
+		{ std::terminate(); }
 };
 
 /**	Viral awaitable: promise_type inherits PostingPromiseTemplate<T> (posting
