@@ -18,6 +18,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 option(ENABLE_DEBUG_LOCKS "Enable debug features for locking system" OFF)
 option(ENABLE_DEBUG_TRACE_CALLABLES
 	"Enable callable tracing for debugging boost::asio post operations" OFF)
+option(ENABLE_DEBUG_CO "Enable coroutine-type debug logging" OFF)
 
 # Qutex deadlock detection configuration
 if(NOT DEFINED DEBUG_QUTEX_DEADLOCK_TIMEOUT_MS)
@@ -41,6 +42,10 @@ endif()
 # Set config variables for config.h
 if(ENABLE_DEBUG_LOCKS)
 	set(CONFIG_ENABLE_DEBUG_LOCKS TRUE)
+endif()
+
+if(ENABLE_DEBUG_CO)
+	set(CONFIG_LIBSSCL_DEBUG_CO TRUE)
 endif()
 
 if(ENABLE_DEBUG_TRACE_CALLABLES)

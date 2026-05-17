@@ -8,4 +8,7 @@
 /* Debug callable tracing configuration */
 #cmakedefine CONFIG_DEBUG_TRACE_CALLABLES
 
+/* Debug coroutine-type logging configuration */
+#cmakedefine CONFIG_LIBSSCL_DEBUG_CO
+
 #endif /* _CONFIG_H */
