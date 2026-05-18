@@ -77,7 +77,6 @@ find_package(Threads REQUIRED)
 # Create the library
 add_library(spinscale SHARED
 	src/qutex.cpp
-	src/lockerAndInvokerBase.cpp
 	src/componentThread.cpp
 	src/component.cpp
 	src/puppeteerComponent.cpp
