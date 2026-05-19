@@ -72,7 +72,7 @@ public:
 	}
 };
 
-void PuppetApplication::joltAllPuppetThreadsReq(
+void PuppetApplication::joltAllPuppetThreadsCReq(
 	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
@@ -106,7 +106,7 @@ void PuppetApplication::joltAllPuppetThreadsReq(
 	}
 }
 
-void PuppetApplication::startAllPuppetThreadsReq(
+void PuppetApplication::startAllPuppetThreadsCReq(
 	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
@@ -130,7 +130,7 @@ void PuppetApplication::startAllPuppetThreadsReq(
 	}
 }
 
-void PuppetApplication::pauseAllPuppetThreadsReq(
+void PuppetApplication::pauseAllPuppetThreadsCReq(
 	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
@@ -154,7 +154,7 @@ void PuppetApplication::pauseAllPuppetThreadsReq(
 	}
 }
 
-void PuppetApplication::resumeAllPuppetThreadsReq(
+void PuppetApplication::resumeAllPuppetThreadsCReq(
 	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {
@@ -178,7 +178,7 @@ void PuppetApplication::resumeAllPuppetThreadsReq(
 	}
 }
 
-void PuppetApplication::exitAllPuppetThreadsReq(
+void PuppetApplication::exitAllPuppetThreadsCReq(
 	cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback
 	)
 {

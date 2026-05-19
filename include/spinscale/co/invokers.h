@@ -10,6 +10,7 @@
 #include <thread>
 #include <type_traits>
 
+#include <spinscale/co/nonPostingInvoker.h>
 #include <spinscale/co/postingInvoker.h>
 
 namespace sscl::co {
@@ -21,7 +22,7 @@ namespace sscl::co {
  *	from get_return_object(). ~PostingInvoker destroys the callee frame.
  */
 template <template <typename> class PostingPromiseTemplate>
-struct NonViralNonSuspendingInvoker
+struct NonViralPostingInvoker
 :	public PostingInvoker<PostingPromiseTemplate<void>, void>
 {
 	struct promise_type
@@ -29,10 +30,10 @@ struct NonViralNonSuspendingInvoker
 	{
 		using PostingPromiseTemplate<void>::PostingPromiseTemplate;
 
-		NonViralNonSuspendingInvoker<PostingPromiseTemplate> get_return_object()
+		NonViralPostingInvoker<PostingPromiseTemplate> get_return_object()
 		{
 #ifdef CONFIG_LIBSSCL_DEBUG_CO
-			std::cout << __func__ << ": " << std::this_thread::get_id() << " Returning NonViralNonSuspendingInvoker.\n";
+			std::cout << __func__ << ": " << std::this_thread::get_id() << " Returning NonViralPostingInvoker.\n";
 #endif
 			if (!this->callerLambda)
 			{
@@ -53,7 +54,7 @@ struct NonViralNonSuspendingInvoker
 			this->setSelfSchedHandle(
 				std::coroutine_handle<promise_type>::from_promise(*this));
 
-			return NonViralNonSuspendingInvoker<PostingPromiseTemplate>(*this);
+			return NonViralPostingInvoker<PostingPromiseTemplate>(*this);
 		}
 	};
 
@@ -62,7 +63,7 @@ struct NonViralNonSuspendingInvoker
 	bool await_ready() const noexcept
 		{ std::terminate(); }
 
-	void await_suspend(std::coroutine_handle<NonViralNonSuspendingInvoker<PostingPromiseTemplate>>) noexcept
+	void await_suspend(std::coroutine_handle<NonViralPostingInvoker<PostingPromiseTemplate>>) noexcept
 		{ std::terminate(); }
 
 	void await_resume() noexcept
@@ -76,7 +77,7 @@ struct NonViralNonSuspendingInvoker
  *	~PostingInvoker destroys the callee frame (not await_resume).
  */
 template <template <typename> class PostingPromiseTemplate, typename T>
-struct ViralSuspendingInvoker
+struct ViralPostingInvoker
 :	public PostingInvoker<PostingPromiseTemplate<T>, T>
 {
 	struct promise_type
@@ -84,15 +85,15 @@ struct ViralSuspendingInvoker
 	{
 		using PostingPromiseTemplate<T>::PostingPromiseTemplate;
 
-		ViralSuspendingInvoker<PostingPromiseTemplate, T> get_return_object() noexcept
+		ViralPostingInvoker<PostingPromiseTemplate, T> get_return_object() noexcept
 		{
 #ifdef CONFIG_LIBSSCL_DEBUG_CO
-			std::cout << __func__ << ": " << std::this_thread::get_id() << " Returning ViralSuspendingInvoker.\n";
+			std::cout << __func__ << ": " << std::this_thread::get_id() << " Returning ViralPostingInvoker.\n";
 #endif
 			this->setSelfSchedHandle(
 				std::coroutine_handle<promise_type>::from_promise(*this));
 
-			return ViralSuspendingInvoker<PostingPromiseTemplate, T>(*this);
+			return ViralPostingInvoker<PostingPromiseTemplate, T>(*this);
 		}
 	};
 
@@ -111,7 +112,7 @@ struct ViralSuspendingInvoker
 	{
 		static_assert(
 			std::is_base_of_v<PromiseChainLink, CallerPromise>,
-			"ViralSuspendingInvoker caller promise must derive from PromiseChainLink");
+			"ViralPostingInvoker caller promise must derive from PromiseChainLink");
 #ifdef CONFIG_LIBSSCL_DEBUG_CO
 		std::cout << __func__ << ": " << std::this_thread::get_id() << " Setting callerSchedHandle.\n";
 #endif
@@ -142,6 +143,53 @@ struct ViralSuspendingInvoker
 #endif
 		return PostingInvoker<PostingPromiseTemplate<T>, T>::await_resume();
 	}
+};
+
+/**	Non-viral coroutine entry that must not be co_awaited: runs on the caller
+ *	thread (initial_suspend is never) and invokes the completion lambda directly
+ *	from final_suspend (no cross-thread posting).
+ *
+ *	The invoker must outlive the callee frame: do not discard the return object
+ *	from get_return_object(). ~NonPostingInvoker destroys the callee frame.
+ */
+struct NonViralNonPostingInvoker
+:	public NonPostingInvoker<NonPostingPromise>
+{
+	struct promise_type
+	:	public NonPostingPromise
+	{
+		using NonPostingPromise::NonPostingPromise;
+
+		NonViralNonPostingInvoker get_return_object()
+		{
+#ifdef CONFIG_LIBSSCL_DEBUG_CO
+			std::cout << __func__ << ": " << std::this_thread::get_id() << " Returning NonViralNonPostingInvoker.\n";
+#endif
+			if (!this->callerLambda)
+			{
+				std::ostringstream oss;
+				oss << std::this_thread::get_id()
+					<< ": Missing completion lambda: non-viral coroutines require a completion lambda.";
+				throw std::runtime_error(oss.str());
+			}
+
+			this->setSelfSchedHandle(
+				std::coroutine_handle<promise_type>::from_promise(*this));
+
+			return NonViralNonPostingInvoker(*this);
+		}
+	};
+
+	using NonPostingInvoker<NonPostingPromise>::NonPostingInvoker;
+
+	bool await_ready() const noexcept
+		{ std::terminate(); }
+
+	void await_suspend(std::coroutine_handle<NonViralNonPostingInvoker>) noexcept
+		{ std::terminate(); }
+
+	void await_resume() noexcept
+		{ std::terminate(); }
 };
 
 } // namespace sscl::co

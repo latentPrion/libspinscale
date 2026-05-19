@@ -20,15 +20,15 @@ public:
 
 	// Thread management methods
 	typedef std::function<void()> puppetThreadLifetimeMgmtOpCbFn;
-	void joltAllPuppetThreadsReq(
+	void joltAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	void startAllPuppetThreadsReq(
+	void startAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	void pauseAllPuppetThreadsReq(
+	void pauseAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	void resumeAllPuppetThreadsReq(
+	void resumeAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	void exitAllPuppetThreadsReq(
+	void exitAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
 
 	// CPU distribution method

@@ -471,7 +471,7 @@ struct Group
 		std::size_t settlementIndex) noexcept
 	{
 		/**	EXPLANATION:
-		 * It's very convenient that our design for the NonViralNonSuspendingInvoker
+		 * It's very convenient that our design for the NonViralPostingInvoker
 		 * coincidentally allows us to supply a lambda that can be used to test
 		 * for the settlement conditions that are being waited on by the Group's
 		 * co_awaiter.
