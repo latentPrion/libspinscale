@@ -169,18 +169,19 @@ public:
 			ThreadOp _threadOp,
 			PuppetThread &_parentThread,
 			const std::shared_ptr<PuppetThread> &_selfPtr = nullptr)
-		: threadOp(_threadOp), parentThread(_parentThread), selfPtr(_selfPtr)
+		: threadOp(_threadOp),
+		parentThread(_parentThread),
+		selfPtr(_selfPtr),
+		lifetimeMgmtCallback{
+			nullptr,
+			[this]()
+			{
+				settled = true;
+				if (callerSchedHandle) {
+					callerSchedHandle.resume();
+				}
+			}}
 		{
-			cps::Callback<threadLifetimeMgmtOpCbFn> callback{
-				nullptr,
-				[this]()
-				{
-					settled = true;
-					if (callerSchedHandle) {
-						callerSchedHandle.resume();
-					}
-				}};
-
 			if (threadOp == ThreadOp::JOLT && selfPtr == nullptr)
 			{
 				throw std::runtime_error(std::string(__func__)
@@ -190,19 +191,19 @@ public:
 			switch (threadOp)
 			{
 			case ThreadOp::START:
-				parentThread.startThreadReq(callback);
+				parentThread.startThreadReq(lifetimeMgmtCallback);
 				break;
 			case ThreadOp::PAUSE:
-				parentThread.pauseThreadReq(callback);
+				parentThread.pauseThreadReq(lifetimeMgmtCallback);
 				break;
 			case ThreadOp::RESUME:
-				parentThread.resumeThreadReq(callback);
+				parentThread.resumeThreadReq(lifetimeMgmtCallback);
 				break;
 			case ThreadOp::EXIT:
-				parentThread.exitThreadReq(callback);
+				parentThread.exitThreadReq(lifetimeMgmtCallback);
 				break;
 			case ThreadOp::JOLT:
-				parentThread.joltThreadReq(selfPtr, callback);
+				parentThread.joltThreadReq(selfPtr, lifetimeMgmtCallback);
 				break;
 
 			default:
@@ -228,6 +229,7 @@ public:
 		std::coroutine_handle<> callerSchedHandle;
 		PuppetThread &parentThread;
 		const std::shared_ptr<PuppetThread> selfPtr;
+		cps::Callback<threadLifetimeMgmtOpCbFn> lifetimeMgmtCallback;
 	};
 
 	ViralThreadLifetimeMgmtInvoker startThreadAReq()

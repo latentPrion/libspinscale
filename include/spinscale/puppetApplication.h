@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 #include <spinscale/cps/callback.h>
+#include <spinscale/co/invokers.h>
 #include <spinscale/componentThread.h>
 
 namespace sscl {
@@ -20,15 +21,15 @@ public:
 
 	// Thread management methods
 	typedef std::function<void()> puppetThreadLifetimeMgmtOpCbFn;
-	void joltAllPuppetThreadsCReq(
+	NonViralNonPostingInvoker joltAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	void startAllPuppetThreadsCReq(
+	NonViralNonPostingInvoker startAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	void pauseAllPuppetThreadsCReq(
+	NonViralNonPostingInvoker pauseAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	void resumeAllPuppetThreadsCReq(
+	NonViralNonPostingInvoker resumeAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	void exitAllPuppetThreadsCReq(
+	NonViralNonPostingInvoker exitAllPuppetThreadsCReq(
 		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
 
 	// CPU distribution method
