@@ -13,6 +13,7 @@
 #include <sched.h>
 #include <unistd.h>
 #include <memory>
+#include <coroutine>
 #include <spinscale/cps/callback.h>
 #include <cstdint>
 #include <string>
@@ -160,20 +161,25 @@ public:
 
 	void initializeTls(void);
 
+	typedef std::function<void()> threadLifetimeMgmtOpCbFn;
+
 	struct ViralThreadLifetimeMgmtInvoker
 	{
 		ViralThreadLifetimeMgmtInvoker(
-			ThreadOp _threadOp
+			ThreadOp _threadOp,
 			PuppetThread &_parentThread,
 			const std::shared_ptr<PuppetThread> &_selfPtr = nullptr)
 		: threadOp(_threadOp), parentThread(_parentThread), selfPtr(_selfPtr)
 		{
-			cps::Callback<threadLifetimeMgmtOpCbFn> callback = [this]
-			{
-				settled = true;
-				if (callerSchedHandle)
-					{ callerSchedHandle.resume(); }
-			};
+			cps::Callback<threadLifetimeMgmtOpCbFn> callback{
+				nullptr,
+				[this]()
+				{
+					settled = true;
+					if (callerSchedHandle) {
+						callerSchedHandle.resume();
+					}
+				}};
 
 			if (threadOp == ThreadOp::JOLT && selfPtr == nullptr)
 			{
@@ -208,7 +214,7 @@ public:
 		bool await_ready() const noexcept { return settled; }
 
 		bool await_suspend(
-			std::coroutine_handle<void> const _callerSchedHandle) noexcept
+			std::coroutine_handle<> _callerSchedHandle) noexcept
 		{
 			if (settled) { return false; }
 			callerSchedHandle = _callerSchedHandle;
@@ -217,8 +223,9 @@ public:
 
 		void await_resume() noexcept {}
 
+		ThreadOp threadOp;
 		bool settled = false;
-		std::coroutine_handle<void> callerSchedHandle;
+		std::coroutine_handle<> callerSchedHandle;
 		PuppetThread &parentThread;
 		const std::shared_ptr<PuppetThread> selfPtr;
 	};
@@ -232,8 +239,6 @@ public:
 	ViralThreadLifetimeMgmtInvoker exitThreadAReq()
 		{ return ViralThreadLifetimeMgmtInvoker(ThreadOp::EXIT, *this); }
 
-	// Thread management methods
-	typedef std::function<void()> threadLifetimeMgmtOpCbFn;
 	void startThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback);
 	void exitThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback);
 	void pauseThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback);
