@@ -2,10 +2,10 @@
 #define PUPPET_APPLICATION_H
 
 #include <config.h>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <vector>
-#include <spinscale/cps/callback.h>
 #include <spinscale/co/invokers.h>
 #include <spinscale/componentThread.h>
 
@@ -19,18 +19,16 @@ public:
 		const std::vector<std::shared_ptr<PuppetThread>> &threads);
 	~PuppetApplication() = default;
 
-	// Thread management methods
-	typedef std::function<void()> puppetThreadLifetimeMgmtOpCbFn;
-	NonViralNonPostingInvoker joltAllPuppetThreadsCReq(
-		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	NonViralNonPostingInvoker startAllPuppetThreadsCReq(
-		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	NonViralNonPostingInvoker pauseAllPuppetThreadsCReq(
-		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	NonViralNonPostingInvoker resumeAllPuppetThreadsCReq(
-		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
-	NonViralNonPostingInvoker exitAllPuppetThreadsCReq(
-		cps::Callback<puppetThreadLifetimeMgmtOpCbFn> callback);
+	co::NonViralNonPostingInvoker joltAllPuppetThreadsCReq(
+		std::exception_ptr &exceptionPtr, std::function<void()> callback);
+	co::NonViralNonPostingInvoker startAllPuppetThreadsCReq(
+		std::exception_ptr &exceptionPtr, std::function<void()> callback);
+	co::NonViralNonPostingInvoker pauseAllPuppetThreadsCReq(
+		std::exception_ptr &exceptionPtr, std::function<void()> callback);
+	co::NonViralNonPostingInvoker resumeAllPuppetThreadsCReq(
+		std::exception_ptr &exceptionPtr, std::function<void()> callback);
+	co::NonViralNonPostingInvoker exitAllPuppetThreadsCReq(
+		std::exception_ptr &exceptionPtr, std::function<void()> callback);
 
 	// CPU distribution method
 	void distributeAndPinThreadsAcrossCpus();
@@ -59,9 +57,6 @@ protected:
 	 * a synchronization point for the entire system initialization.
 	 */
 	bool threadsHaveBeenJolted = false;
-
-private:
-	class PuppetThreadLifetimeMgmtOp;
 };
 
 } // namespace sscl
