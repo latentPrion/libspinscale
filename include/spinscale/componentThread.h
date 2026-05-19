@@ -168,10 +168,11 @@ public:
 			const std::shared_ptr<PuppetThread> &_selfPtr = nullptr)
 		: threadOp(_threadOp), parentThread(_parentThread), selfPtr(_selfPtr)
 		{
-			std::function<void(bool)> callback = [this](bool success)
+			cps::Callback<threadLifetimeMgmtOpCbFn> callback = [this]
 			{
 				settled = true;
-				retval = success;
+				if (callerSchedHandle)
+					{ callerSchedHandle.resume(); }
 			};
 
 			if (threadOp == ThreadOp::JOLT && selfPtr == nullptr)
@@ -214,14 +215,10 @@ public:
 			return true;
 		}
 
-		bool await_resume() noexcept
-		{
-			return retval;
-		}
+		void await_resume() noexcept {}
 
 		bool settled = false;
-		bool retval = false;
-		std::coroutine_handle<void> const callerSchedHandle;
+		std::coroutine_handle<void> callerSchedHandle;
 		PuppetThread &parentThread;
 		const std::shared_ptr<PuppetThread> selfPtr;
 	};
