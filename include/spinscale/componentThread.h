@@ -160,6 +160,81 @@ public:
 
 	void initializeTls(void);
 
+	struct ViralThreadLifetimeMgmtInvoker
+	{
+		ViralThreadLifetimeMgmtInvoker(
+			ThreadOp _threadOp
+			PuppetThread &_parentThread,
+			const std::shared_ptr<PuppetThread> &_selfPtr = nullptr)
+		: threadOp(_threadOp), parentThread(_parentThread), selfPtr(_selfPtr)
+		{
+			std::function<void(bool)> callback = [this](bool success)
+			{
+				settled = true;
+				retval = success;
+			};
+
+			if (threadOp == ThreadOp::JOLT && selfPtr == nullptr)
+			{
+				throw std::runtime_error(std::string(__func__)
+					+ ": JOLT request must be made with a valid selfPtr");
+			}
+
+			switch (threadOp)
+			{
+			case ThreadOp::START:
+				parentThread.startThreadReq(callback);
+				break;
+			case ThreadOp::PAUSE:
+				parentThread.pauseThreadReq(callback);
+				break;
+			case ThreadOp::RESUME:
+				parentThread.resumeThreadReq(callback);
+				break;
+			case ThreadOp::EXIT:
+				parentThread.exitThreadReq(callback);
+				break;
+			case ThreadOp::JOLT:
+				parentThread.joltThreadReq(selfPtr, callback);
+				break;
+
+			default:
+				throw std::runtime_error(std::string(__func__)
+					+ ": Invalid thread operation");
+			}
+		}
+
+		bool await_ready() const noexcept { return settled; }
+
+		bool await_suspend(
+			std::coroutine_handle<void> const _callerSchedHandle) noexcept
+		{
+			if (settled) { return false; }
+			callerSchedHandle = _callerSchedHandle;
+			return true;
+		}
+
+		bool await_resume() noexcept
+		{
+			return retval;
+		}
+
+		bool settled = false;
+		bool retval = false;
+		std::coroutine_handle<void> const callerSchedHandle;
+		PuppetThread &parentThread;
+		const std::shared_ptr<PuppetThread> selfPtr;
+	};
+
+	ViralThreadLifetimeMgmtInvoker startThreadAReq()
+		{ return ViralThreadLifetimeMgmtInvoker(ThreadOp::START, *this); }
+	ViralThreadLifetimeMgmtInvoker pauseThreadAReq()
+		{ return ViralThreadLifetimeMgmtInvoker(ThreadOp::PAUSE, *this); }
+	ViralThreadLifetimeMgmtInvoker resumeThreadAReq()
+		{ return ViralThreadLifetimeMgmtInvoker(ThreadOp::RESUME, *this); }
+	ViralThreadLifetimeMgmtInvoker exitThreadAReq()
+		{ return ViralThreadLifetimeMgmtInvoker(ThreadOp::EXIT, *this); }
+
 	// Thread management methods
 	typedef std::function<void()> threadLifetimeMgmtOpCbFn;
 	void startThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback);
@@ -178,6 +253,10 @@ public:
 	 *                isn't set up yet, so shared_from_this() can't be used)
 	 * @param callback Callback to invoke when JOLT completes
 	 */
+	ViralThreadLifetimeMgmtInvoker joltThreadAReq(
+		const std::shared_ptr<PuppetThread> &selfPtr)
+		{ return ViralThreadLifetimeMgmtInvoker(ThreadOp::JOLT, *this, selfPtr); }
+
 	void joltThreadReq(
 		const std::shared_ptr<PuppetThread>& selfPtr,
 		cps::Callback<threadLifetimeMgmtOpCbFn> callback);
