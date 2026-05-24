@@ -1,5 +1,5 @@
-#ifndef PROMISES_H
-#define PROMISES_H
+#ifndef POSTING_PROMISE_H
+#define POSTING_PROMISE_H
 
 #include <config.h>
 #include <coroutine>
@@ -16,82 +16,15 @@
 
 #include <spinscale/componentThread.h>
 #include <spinscale/co/coQutex.h>
+#include <spinscale/co/promiseChainLink.h>
+#include <spinscale/co/promiseReturnOps.h>
+#include <spinscale/co/returnValues.h>
 #include <spinscale/spinLock.h>
 
 namespace sscl::co {
 
 template <typename PromiseType, typename T>
 class PostingInvoker;
-
-template <typename T, bool IsVoid = std::is_void_v<T>>
-struct ReturnValueStorage;
-
-template <typename T>
-struct ReturnValueStorage<T, false>
-{
-	T myReturnValue{};
-};
-
-template <typename T>
-struct ReturnValueStorage<T, true>
-{
-};
-
-template <typename T>
-struct ReturnValues
-: public ReturnValueStorage<T>
-{
-	ReturnValues() noexcept
-	: myExceptionPtr(myMemberExceptionPtr)
-	{}
-
-	explicit ReturnValues(std::exception_ptr &callerExceptionPtr) noexcept
-	: myExceptionPtr(callerExceptionPtr)
-	{}
-
-	~ReturnValues() noexcept
-	{
-#ifdef CONFIG_LIBSSCL_DEBUG_CO
-		std::cout << __func__ << ": " << std::this_thread::get_id() << " Destructing.\n";
-#endif
-	}
-
-	/**	EXPLANATION:
-	 * The exception_ptr ref here can either point to the exception_ptr
-	 * a non-viral coroutine supplied to us as its storage space for
-	 * where we should store any exception that is thrown;
-	 *
-	 * Or it could point to the member exception_ptr in this very class,
-	 * which is used for viral coroutines that can bubble their exception
-	 * up and automatically via the language runtime.
-	 */
-	std::exception_ptr &myExceptionPtr;
-	std::exception_ptr myMemberExceptionPtr = nullptr;
-};
-
-/**	`return_value` / `return_void` only. ThreadTag is not a template parameter here:
- *	for tagged promises, PromiseType is `TaggedPostingPromise<T, ThreadTag>`.
- */
-template <typename PromiseType, typename T, bool IsVoid = std::is_void_v<T>>
-struct PostingPromiseReturnOps;
-
-template <typename PromiseType, typename T>
-struct PostingPromiseReturnOps<PromiseType, T, false>
-{
-	void return_value(T returnValue) noexcept
-	{
-		static_cast<PromiseType *>(this)->returnValues.myReturnValue = std::move(returnValue);
-	}
-};
-
-template <typename PromiseType, typename T>
-struct PostingPromiseReturnOps<PromiseType, T, true>
-{
-	void return_void() noexcept
-	{
-		return;
-	}
-};
 
 template <typename T>
 struct PostingPromise
@@ -345,7 +278,7 @@ protected:
 template <typename T, typename ThreadTag>
 struct TaggedPostingPromise
 :	public PostingPromise<T>,
-	public PostingPromiseReturnOps<TaggedPostingPromise<T, ThreadTag>, T>
+	public PromiseReturnOps<TaggedPostingPromise<T, ThreadTag>, T>
 {
 	TaggedPostingPromise() noexcept
 	:	PostingPromise<T>()
@@ -389,4 +322,4 @@ struct TaggedPostingPromise
 
 } // namespace sscl::co
 
-#endif // PROMISES_H
+#endif // POSTING_PROMISE_H

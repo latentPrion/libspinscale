@@ -10,8 +10,8 @@
 #include <thread>
 #include <type_traits>
 
-#include <spinscale/co/nonPostingInvoker.h>
-#include <spinscale/co/postingInvoker.h>
+#include <spinscale/co/invokerBase.h>
+#include <spinscale/co/nonPostingPromise.h>
 
 namespace sscl::co {
 

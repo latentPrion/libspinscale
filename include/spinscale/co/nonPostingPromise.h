@@ -12,14 +12,15 @@
 #include <spinscale/spinLock.h>
 #include <spinscale/co/coQutex.h>
 #include <spinscale/co/promiseChainLink.h>
-#include <spinscale/co/promises.h>
+#include <spinscale/co/promiseReturnOps.h>
+#include <spinscale/co/returnValues.h>
 
 namespace sscl::co {
 
 template <typename T>
 struct NonPostingPromise
 :	public PromiseChainLink,
-	public PostingPromiseReturnOps<NonPostingPromise<T>, T>
+	public PromiseReturnOps<NonPostingPromise<T>, T>
 {
 	struct PostBackStatus
 	{
