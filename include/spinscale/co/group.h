@@ -1,6 +1,7 @@
 #ifndef GROUP_H
 #define GROUP_H
 
+#include <any>
 #include <cassert>
 #include <coroutine>
 #include <cstddef>
@@ -60,6 +61,19 @@ concept AwaitableIface = requires(T &t) {
 	{ get_operator_co_await(t) };
 } && AwaiterIface<decltype(get_operator_co_await(std::declval<T &>()))>;
 
+template<AwaiterIface T>
+T &asAwaiter(T &t) noexcept
+{
+	return t;
+}
+
+template<AwaitableIface T>
+auto asAwaiter(T &t) noexcept(noexcept(get_operator_co_await(t)))
+	-> decltype(get_operator_co_await(t))
+{
+	return get_operator_co_await(t);
+}
+
 } // namespace detail
 
 template <typename T>
@@ -71,8 +85,27 @@ concept AwaiterIface = detail::AwaiterIface<T>;
 template <typename T>
 concept AwaitableOrAwaiterIface = AwaiterIface<T> || AwaitableIface<T>;
 
-template <typename Invoker>
-requires AwaitableOrAwaiterIface<Invoker>
+/** Typical usage — parallel members, then gather:
+ *
+ *   co::Group group;
+ *
+ *   auto bodyInit = body.initializeCReq(exceptionPtr, noopCallback);
+ *   auto legInit  = leg.initializeCReq(exceptionPtr, noopCallback);
+ *   ViralNonPostingInvoker<void> batch = app.joltAllPuppetThreadsCReq(...);
+ *
+ *   group.add(bodyInit);
+ *   group.add(legInit);
+ *   group.add(batch);
+ *
+ *   co_await group.getAwaitAllSettlementsInvoker();
+ *   group.checkForAndReThrowGroupExceptions();
+ *
+ *   (void)bodyInit.completedReturnValues();
+ *
+ *   // When walking settlement slots by index:
+ *   settlements[i].invokerAs<BodyViralPostingInvoker<void>>()
+ *       .completedReturnValues();
+ */
 struct Group
 {
 	enum class AwaitingCondition {
@@ -91,9 +124,23 @@ struct Group
 			UNSETTLED, COMPLETED, EXCEPTION_THROWN
 		};
 
-		SettlementDescriptor(Invoker &_invoker)
-		: invoker(std::ref(_invoker))
-		{}
+		template<typename Member>
+		void bindMemberRef(Member &member)
+		{
+			memberInvokerRef = std::ref(member);
+		}
+
+		template<typename Member>
+		Member &invokerAs() const
+		{
+			try {
+				return std::any_cast<std::reference_wrapper<Member>>(
+					memberInvokerRef).get();
+			} catch (const std::bad_any_cast &) {
+				throw std::runtime_error(
+					"Group settlement invoker type mismatch");
+			}
+		}
 
 		void setSettlementStatus() noexcept
 		{
@@ -109,7 +156,7 @@ struct Group
 		TypeE type = TypeE::UNSETTLED;
 		std::exception_ptr calleeException = nullptr;
 		std::exception_ptr adapterException = nullptr;
-		std::reference_wrapper<Invoker> invoker;
+		std::any memberInvokerRef;
 	};
 
 	struct SettlementAwaitingInvoker;
@@ -466,28 +513,17 @@ struct Group
 	 * target async fn, and also to convey its results back to the Group class.
 	 * It's effectively a go-between coro that provides the outcomes that Invokers
 	 * normally provide, without needing, itself, to be co_awaited.
+	 *
+	 * settlementIndex is captured by value (not a vector iterator) so adapter
+	 * coros remain valid if settlements reallocate during concurrent add().
 	 */
-	NonAwaitableNonPostingAdapterCoro nonAwaitableAdapterCoro(
+	template<AwaitableOrAwaiterIface Member>
+	NonAwaitableNonPostingAdapterCoro memberAdapterCoro(
+		Member &memberInvoker,
 		std::size_t settlementIndex) noexcept
 	{
-		/**	EXPLANATION:
-		 * It's very convenient that our design for the NonViralPostingInvoker
-		 * coincidentally allows us to supply a lambda that can be used to test
-		 * for the settlement conditions that are being waited on by the Group's
-		 * co_awaiter.
-		 *
-		 * settlementIndex is captured by value (not a vector iterator) so adapter
-		 * coros remain valid if settlements reallocate during concurrent add().
-		 */
 		try {
-			/* Return values remain in the callee promise until the caller-owned
-			 * invoker is destroyed (~PostingInvoker). The group co_awaiter reads
-			 * results via settlements[settlementIndex].invoker after awaiting.
-			 *
-			 * Index settlements[] each time; do not cache a reference across
-			 * co_await because concurrent add() may reallocate the vector.
-			 */
-			co_await s.rsrc.settlements[settlementIndex].invoker.get();
+			co_await detail::asAwaiter(memberInvoker);
 		}
 		catch (...)
 		{
@@ -505,12 +541,8 @@ struct Group
 		co_return;
 	}
 
-	/**	EXPLANATION:
-	 * Each invoker passed to add() must outlive this Group and the callee frame
-	 * (see ~PostingInvoker). The group co_awaiter reads return values from those
-	 * invokers after awaiting; do not destroy an invoker until reads are done.
-	 */
-	void add(Invoker &invoker)
+	template<AwaitableOrAwaiterIface Member>
+	void add(Member &memberInvoker)
 	{
 		std::size_t settlementIndex = 0;
 
@@ -525,10 +557,11 @@ struct Group
 			}
 
 			settlementIndex = s.rsrc.settlements.size();
-			s.rsrc.settlements.emplace_back(invoker);
+			s.rsrc.settlements.emplace_back();
+			s.rsrc.settlements[settlementIndex].bindMemberRef(memberInvoker);
 		}
 
-		nonAwaitableAdapterCoro(settlementIndex);
+		memberAdapterCoro(memberInvoker, settlementIndex);
 	}
 
 	void checkForAndReThrowGroupExceptions() const

@@ -39,7 +39,7 @@ public:
 protected:
 	using PuppetLifetimeMgmtInvoker =
 		PuppetThread::ViralThreadLifetimeMgmtInvoker;
-	using PuppetLifetimeMgmtGroup = co::Group<PuppetLifetimeMgmtInvoker>;
+	using PuppetLifetimeMgmtGroup = co::Group;
 
 	void addAllPuppetLifetimeInvokersToGroup(
 		PuppetLifetimeMgmtGroup &group,

@@ -85,9 +85,7 @@ PuppetApplication::joltAllPuppetThreadsCReq(
 
 	addAllPuppetLifetimeInvokersToGroup(
 		group, invokers, PuppetThread::ThreadOp::JOLT);
-	PuppetLifetimeMgmtGroup::AwaitAllSettlementsInvoker groupAwaitAll(
-		group);
-	co_await groupAwaitAll;
+	co_await group.getAwaitAllSettlementsInvoker();
 	group.checkForAndReThrowGroupExceptions();
 
 	threadsHaveBeenJolted = true;
@@ -111,9 +109,7 @@ PuppetApplication::allPuppetThreadsLifetimeOpCReq(
 	std::vector<PuppetLifetimeMgmtInvoker> invokers;
 
 	addAllPuppetLifetimeInvokersToGroup(group, invokers, threadOp);
-	PuppetLifetimeMgmtGroup::AwaitAllSettlementsInvoker groupAwaitAll(
-		group);
-	co_await groupAwaitAll;
+	co_await group.getAwaitAllSettlementsInvoker();
 	group.checkForAndReThrowGroupExceptions();
 
 	co_return;
@@ -151,8 +147,8 @@ PuppetApplication::resumeAllPuppetThreadsCReq(
 
 co::ViralNonPostingInvoker<void>
 PuppetApplication::exitAllPuppetThreadsCReq(
-	[[maybe_unused]] std::exception_ptr &exceptionPtr,
-	[[maybe_unused]] std::function<void()> callback)
+	std::exception_ptr &exceptionPtr,
+	std::function<void()> callback)
 {
 	if (componentThreads.empty())
 	{
@@ -160,15 +156,10 @@ PuppetApplication::exitAllPuppetThreadsCReq(
 		co_return;
 	}
 
-	PuppetLifetimeMgmtGroup group;
-	std::vector<PuppetLifetimeMgmtInvoker> invokers;
-
-	addAllPuppetLifetimeInvokersToGroup(
-		group, invokers, PuppetThread::ThreadOp::EXIT);
-	PuppetLifetimeMgmtGroup::AwaitAllSettlementsInvoker groupAwaitAll(
-		group);
-	co_await groupAwaitAll;
-	group.checkForAndReThrowGroupExceptions();
+	co_await allPuppetThreadsLifetimeOpCReq(
+		exceptionPtr, std::move(callback),
+		PuppetThread::ThreadOp::EXIT,
+		noPuppetThreadsToExitLogMessage);
 
 	for (auto &thread : componentThreads) {
 		thread->thread.join();
