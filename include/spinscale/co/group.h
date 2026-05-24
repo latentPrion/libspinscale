@@ -439,7 +439,7 @@ struct Group
 			 * would be impossible.
 			 *
 			 * So we should be able to call resume() directly here without
-			 * post()ing to current_io_context().
+			 * post()ing to ComponentThread::getSelf()->getIoService().
 			 *
 			 *	EXPLANATION:
 			 * However, in order to ensure that we keep this adapter coro

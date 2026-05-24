@@ -47,7 +47,10 @@ struct NonViralPostingInvoker
 				 */
 				std::ostringstream oss;
 				oss << std::this_thread::get_id()
-					<< ": Missing completion lambda: non-viral coroutines require a completion lambda.";
+					<< ": Missing completion lambda: non-viral coroutines require a completion lambda."
+					<< " Promise type=" << typeid(*this).name()
+					<< ". This usually means promise construction did not bind the"
+					<< " (exception_ptr&, function<void()>, ...) constructor.";
 				throw std::runtime_error(oss.str());
 			}
 
@@ -153,12 +156,12 @@ struct ViralPostingInvoker
  *	from get_return_object(). ~NonPostingInvoker destroys the callee frame.
  */
 struct NonViralNonPostingInvoker
-:	public NonPostingInvoker<NonPostingPromise>
+:	public NonPostingInvoker<NonPostingPromise<void>, void>
 {
 	struct promise_type
-	:	public NonPostingPromise
+	:	public NonPostingPromise<void>
 	{
-		using NonPostingPromise::NonPostingPromise;
+		using NonPostingPromise<void>::NonPostingPromise;
 
 		NonViralNonPostingInvoker get_return_object()
 		{
@@ -169,7 +172,10 @@ struct NonViralNonPostingInvoker
 			{
 				std::ostringstream oss;
 				oss << std::this_thread::get_id()
-					<< ": Missing completion lambda: non-viral coroutines require a completion lambda.";
+					<< ": Missing completion lambda: non-viral coroutines require a completion lambda."
+					<< " Promise type=" << typeid(*this).name()
+					<< ". This usually means promise construction did not bind the"
+					<< " (exception_ptr&, function<void()>, ...) constructor.";
 				throw std::runtime_error(oss.str());
 			}
 
@@ -180,7 +186,7 @@ struct NonViralNonPostingInvoker
 		}
 	};
 
-	using NonPostingInvoker<NonPostingPromise>::NonPostingInvoker;
+	using NonPostingInvoker<NonPostingPromise<void>, void>::NonPostingInvoker;
 
 	bool await_ready() const noexcept
 		{ std::terminate(); }
@@ -190,6 +196,66 @@ struct NonViralNonPostingInvoker
 
 	void await_resume() noexcept
 		{ std::terminate(); }
+};
+
+/**	Viral awaitable non-posting coroutine: runs eagerly on the caller thread
+ *	(initial_suspend is never). Caller resume uses symmetric transfer when the
+ *	caller has registered before callee completion; otherwise PostBackStatus
+ *	fast-paths await_resume on co_await.
+ */
+template <typename T = void>
+struct ViralNonPostingInvoker
+:	public NonPostingInvoker<NonPostingPromise<T>, T>
+{
+	struct promise_type
+	:	public NonPostingPromise<T>
+	{
+		using NonPostingPromise<T>::NonPostingPromise;
+
+		ViralNonPostingInvoker<T> get_return_object() noexcept
+		{
+#ifdef CONFIG_LIBSSCL_DEBUG_CO
+			std::cout << __func__ << ": " << std::this_thread::get_id()
+				<< " Returning ViralNonPostingInvoker.\n";
+#endif
+			this->setSelfSchedHandle(
+				std::coroutine_handle<promise_type>::from_promise(*this));
+
+			return ViralNonPostingInvoker<T>(*this);
+		}
+	};
+
+	using NonPostingInvoker<NonPostingPromise<T>, T>::NonPostingInvoker;
+
+	bool await_ready() const noexcept
+		{ return false; }
+
+	template <typename CallerPromise>
+	bool await_suspend(
+		std::coroutine_handle<CallerPromise> callerSchedHandle) noexcept
+	{
+		static_assert(
+			std::is_base_of_v<PromiseChainLink, CallerPromise>,
+			"ViralNonPostingInvoker caller promise must derive from "
+			"PromiseChainLink");
+#ifdef CONFIG_LIBSSCL_DEBUG_CO
+		std::cout << __func__ << ": " << std::this_thread::get_id()
+			<< " Setting callerSchedHandle.\n";
+#endif
+		const bool suspendCaller =
+			this->setCallerSchedHandle(callerSchedHandle);
+#ifdef CONFIG_LIBSSCL_DEBUG_CO
+		std::cout << __func__ << ": " << std::this_thread::get_id()
+			<< " CallerFlowExecutor returned suspend=" << suspendCaller
+			<< ".\n";
+#endif
+		return suspendCaller;
+	}
+
+	auto await_resume()
+	{
+		return NonPostingInvoker<NonPostingPromise<T>, T>::await_resume();
+	}
 };
 
 } // namespace sscl::co

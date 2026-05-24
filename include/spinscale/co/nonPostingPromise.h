@@ -9,15 +9,99 @@
 #include <thread>
 #include <utility>
 
+#include <spinscale/spinLock.h>
 #include <spinscale/co/coQutex.h>
 #include <spinscale/co/promiseChainLink.h>
 #include <spinscale/co/promises.h>
 
 namespace sscl::co {
 
+template <typename T>
 struct NonPostingPromise
-:	public PromiseChainLink
+:	public PromiseChainLink,
+	public PostingPromiseReturnOps<NonPostingPromise<T>, T>
 {
+	struct PostBackStatus
+	{
+		struct CalleeFlowExecutor;
+		struct CallerFlowExecutor;
+		friend struct CalleeFlowExecutor;
+		friend struct CallerFlowExecutor;
+
+		explicit PostBackStatus(NonPostingPromise &calleePromiseIn) noexcept
+		: calleePromise(calleePromiseIn)
+		{}
+
+		void reset() noexcept
+		{
+			sscl::SpinLock::Guard guard(lock);
+			callerHasSetCallerSchedHandle = false;
+			calleeIsReadyToPostBack = false;
+		}
+
+		struct FlowExecutor
+		{
+			explicit FlowExecutor(PostBackStatus &parentIn) noexcept
+			: parent(parentIn)
+			{}
+
+			PostBackStatus &parent;
+		};
+
+		struct CalleeFlowExecutor
+		:	public FlowExecutor
+		{
+			explicit CalleeFlowExecutor(PostBackStatus &parentIn) noexcept
+			: FlowExecutor(parentIn)
+			{}
+
+			bool operator()() noexcept
+			{
+				sscl::SpinLock::Guard guard(this->parent.lock);
+				this->parent.calleeIsReadyToPostBack = true;
+				if (this->parent.callerHasSetCallerSchedHandle) {
+					return true;
+				}
+				return false;
+			}
+		};
+
+		struct CallerFlowExecutor
+		:	public FlowExecutor
+		{
+			explicit CallerFlowExecutor(PostBackStatus &parentIn) noexcept
+			: FlowExecutor(parentIn)
+			{}
+
+			bool operator()() noexcept
+			{
+				sscl::SpinLock::Guard guard(this->parent.lock);
+				this->parent.callerHasSetCallerSchedHandle = true;
+				if (this->parent.calleeIsReadyToPostBack) {
+					return false;
+				}
+				return true;
+			}
+		};
+
+		CalleeFlowExecutor getCalleeFlowExecutor() noexcept
+		{
+			return CalleeFlowExecutor(*this);
+		}
+
+		CallerFlowExecutor getCallerFlowExecutor() noexcept
+		{
+			return CallerFlowExecutor(*this);
+		}
+
+		NonPostingPromise &calleePromise;
+
+	private:
+		sscl::SpinLock lock;
+		bool callerHasSetCallerSchedHandle = false;
+		bool calleeIsReadyToPostBack = false;
+	};
+
 	/**	Completion work must run from this awaiter's await_suspend, not
 	 *	synchronously inside promise.final_suspend() before it returns: the
 	 *	hidden coroutine segment index in the coroutine state is only advanced
@@ -26,16 +110,19 @@ struct NonPostingPromise
 	struct FinalSuspendNonPostingInvoker
 	:	public std::suspend_always
 	{
-		explicit FinalSuspendNonPostingInvoker(NonPostingPromise &calleePromiseIn) noexcept
-		:	calleePromise(calleePromiseIn)
+		explicit FinalSuspendNonPostingInvoker(
+			NonPostingPromise &calleePromiseIn) noexcept
+		: calleePromise(calleePromiseIn)
 		{}
 
-		bool await_suspend(std::coroutine_handle<> const) noexcept
+		std::coroutine_handle<> await_suspend(
+			std::coroutine_handle<> const) noexcept
 		{
 			if (calleePromise.callerLambda)
 			{
 #ifdef CONFIG_LIBSSCL_DEBUG_CO
-				std::cout << "final_suspend" << ": " << std::this_thread::get_id()
+				std::cout << "final_suspend" << ": "
+					<< std::this_thread::get_id()
 					<< " Non-viral non-posting: invoking callerLambda directly.\n";
 #endif
 				if (calleePromise.returnValues.myExceptionPtr) {
@@ -44,15 +131,29 @@ struct NonPostingPromise
 				}
 
 				calleePromise.callerLambda();
+				return std::noop_coroutine();
 			}
-			return true;
+
+#ifdef CONFIG_LIBSSCL_DEBUG_CO
+			std::cout << "final_suspend" << ": " << std::this_thread::get_id()
+				<< " Viral non-posting: running CalleeFlowExecutor.\n";
+#endif
+			const bool symmetricTransferToCaller =
+				calleePromise.postBackStatus.getCalleeFlowExecutor()();
+
+			if (symmetricTransferToCaller && calleePromise.callerSchedHandle) {
+				return calleePromise.callerSchedHandle;
+			}
+
+			return std::noop_coroutine();
 		}
 
 		NonPostingPromise &calleePromise;
 	};
 
 	NonPostingPromise() noexcept
-	: returnValues()
+	: returnValues(),
+	postBackStatus(*this)
 	{}
 
 	template <typename... TailArgs>
@@ -61,13 +162,27 @@ struct NonPostingPromise
 		std::function<void()> callerLambdaIn,
 		TailArgs &&...) noexcept
 	: returnValues(callerExceptionPtr),
-	callerLambda(std::move(callerLambdaIn))
+	callerLambda(std::move(callerLambdaIn)),
+	postBackStatus(*this)
+	{}
+
+	template <typename ObjectArg, typename... TailArgs>
+	requires (!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>)
+	NonPostingPromise(
+		ObjectArg &&,
+		std::exception_ptr &callerExceptionPtr,
+		std::function<void()> callerLambdaIn,
+		TailArgs &&...) noexcept
+	: NonPostingPromise(
+		callerExceptionPtr,
+		std::move(callerLambdaIn))
 	{}
 
 	~NonPostingPromise() noexcept
 	{
 #ifdef CONFIG_LIBSSCL_DEBUG_CO
-		std::cout << __func__ << ": " << std::this_thread::get_id() << " Destructing.\n";
+		std::cout << __func__ << ": " << std::this_thread::get_id()
+			<< " Destructing.\n";
 #endif
 	}
 
@@ -76,9 +191,6 @@ struct NonPostingPromise
 
 	auto final_suspend() noexcept
 		{ return FinalSuspendNonPostingInvoker(*this); }
-
-	void return_void() noexcept
-		{ return; }
 
 	void unhandled_exception() noexcept
 	{
@@ -90,16 +202,26 @@ struct NonPostingPromise
 		eraseFirstMatchingAcquiredLock(coQutex);
 	}
 
+	const PromiseChainLink *callerPromiseChainLink() const noexcept override
+		{ return callerChainLink; }
+
+	PromiseChainLink *callerPromiseChainLink() noexcept override
+		{ return callerChainLink; }
+
 	void setSelfSchedHandle(std::coroutine_handle<> schedHandle) noexcept
-	{
-		selfSchedHandle = schedHandle;
-	}
+		{ selfSchedHandle = schedHandle; }
 
-	ReturnValues<void> returnValues;
+	void setCallerPromiseChainLink(PromiseChainLink *chainLink) noexcept
+		{ callerChainLink = chainLink; }
+
+	ReturnValues<T> returnValues;
 	std::function<void()> callerLambda;
+	PostBackStatus postBackStatus;
 	std::coroutine_handle<> selfSchedHandle;
+	std::coroutine_handle<> callerSchedHandle;
+	PromiseChainLink *callerChainLink = nullptr;
 
-	template <typename>
+	template <typename, typename>
 	friend class NonPostingInvoker;
 };
 

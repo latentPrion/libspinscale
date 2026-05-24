@@ -5,7 +5,6 @@
 #include <atomic>
 #include <thread>
 #include <unordered_map>
-#include <boost/asio/io_service.hpp>
 #include <stdexcept>
 #include <queue>
 #include <functional>
@@ -14,9 +13,11 @@
 #include <unistd.h>
 #include <memory>
 #include <coroutine>
-#include <spinscale/cps/callback.h>
 #include <cstdint>
 #include <string>
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/post.hpp>
+#include <spinscale/cps/callback.h>
 
 namespace sscl {
 
@@ -165,21 +166,40 @@ public:
 
 	struct ViralThreadLifetimeMgmtInvoker
 	{
+		struct AsyncState
+		{
+			std::atomic<bool> settled{false};
+			std::coroutine_handle<> callerSchedHandle;
+		};
+
 		ViralThreadLifetimeMgmtInvoker(
 			ThreadOp _threadOp,
 			PuppetThread &_parentThread,
 			const std::shared_ptr<PuppetThread> &_selfPtr = nullptr)
 		: threadOp(_threadOp),
+		asyncState(std::make_shared<AsyncState>()),
 		parentThread(_parentThread),
 		selfPtr(_selfPtr),
 		lifetimeMgmtCallback{
 			nullptr,
-			[this]()
+			[asyncState = asyncState]()
 			{
-				settled = true;
-				if (callerSchedHandle) {
-					callerSchedHandle.resume();
+				asyncState->settled.store(true, std::memory_order_release);
+
+				std::coroutine_handle<> handle =
+					asyncState->callerSchedHandle;
+
+				if (!handle) {
+					return;
 				}
+
+				/**	Post resume to the puppeteer queue: direct resume() from
+				 *	within an asio completion handler can destroy adapter
+				 *	coroutine state while the handler is still unwinding.
+				 */
+				boost::asio::post(
+					ComponentThread::getPptr()->getIoService(),
+					[handle]() { handle.resume(); });
 			}}
 		{
 			if (threadOp == ThreadOp::JOLT && selfPtr == nullptr)
@@ -212,26 +232,32 @@ public:
 			}
 		}
 
-		bool await_ready() const noexcept { return settled; }
+		bool await_ready() const noexcept
+		{
+			return asyncState->settled.load(std::memory_order_acquire);
+		}
 
 		bool await_suspend(
 			std::coroutine_handle<> _callerSchedHandle) noexcept
 		{
-			if (settled) { return false; }
-			callerSchedHandle = _callerSchedHandle;
+			if (asyncState->settled.load(std::memory_order_acquire)) {
+				return false;
+			}
+
+			asyncState->callerSchedHandle = _callerSchedHandle;
 			return true;
 		}
 
 		void await_resume() noexcept {}
 
 		ThreadOp threadOp;
-		bool settled = false;
-		std::coroutine_handle<> callerSchedHandle;
+		std::shared_ptr<AsyncState> asyncState;
 		PuppetThread &parentThread;
 		const std::shared_ptr<PuppetThread> selfPtr;
 		cps::Callback<threadLifetimeMgmtOpCbFn> lifetimeMgmtCallback;
 	};
 
+	// Thread lifetime management request invokers
 	ViralThreadLifetimeMgmtInvoker startThreadAReq()
 		{ return ViralThreadLifetimeMgmtInvoker(ThreadOp::START, *this); }
 	ViralThreadLifetimeMgmtInvoker pauseThreadAReq()

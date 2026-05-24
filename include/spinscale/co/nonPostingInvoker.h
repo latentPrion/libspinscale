@@ -5,13 +5,14 @@
 #include <coroutine>
 #include <iostream>
 #include <thread>
+#include <type_traits>
 #include <utility>
 
 #include <spinscale/co/nonPostingPromise.h>
 
 namespace sscl::co {
 
-template <typename PromiseType>
+template <typename PromiseType, typename T>
 class NonPostingInvoker
 {
 public:
@@ -39,15 +40,55 @@ public:
 		}
 	}
 
-	ReturnValues<void> &completedReturnValues() noexcept
+	template <typename CallerPromise>
+	bool setCallerSchedHandle(
+		std::coroutine_handle<CallerPromise> callerSchedHandle) noexcept
+	{
+		static_assert(
+			std::is_base_of_v<PromiseChainLink, CallerPromise>,
+			"NonPostingInvoker caller promise must derive from PromiseChainLink");
+
+		calleePromise.callerSchedHandle = callerSchedHandle;
+		calleePromise.setCallerPromiseChainLink(
+			&callerSchedHandle.promise());
+#ifdef CONFIG_LIBSSCL_DEBUG_CO
+		std::cout << __func__ << ": " << std::this_thread::get_id()
+			<< " Done setting callerSchedHandle; running CallerFlowExecutor.\n";
+#endif
+		return calleePromise.postBackStatus.getCallerFlowExecutor()();
+	}
+
+	ReturnValues<T> &completedReturnValues() noexcept
 		{ return calleePromise.returnValues; }
 
-	const ReturnValues<void> &completedReturnValues() const noexcept
+	const ReturnValues<T> &completedReturnValues() const noexcept
 		{ return calleePromise.returnValues; }
 
-private:
+	auto await_resume()
+	{
+		calleePromise.postBackStatus.reset();
+
+		ReturnValues<T> &returnValues = calleePromise.returnValues;
+#ifdef CONFIG_LIBSSCL_DEBUG_CO
+		std::cout << __func__ << ": " << std::this_thread::get_id()
+			<< " About to check for and rethrow any exception.\n";
+#endif
+
+		if (returnValues.myExceptionPtr) {
+			std::exception_ptr const captured = returnValues.myExceptionPtr;
+			std::rethrow_exception(captured);
+		}
+		if constexpr (!std::is_void_v<T>)
+		{
+			T result = std::move(returnValues.myReturnValue);
+			return result;
+		}
+	}
+
+protected:
 	PromiseType &calleePromise;
 
+private:
 	/**	Every live invoker owns destruction of its callee coroutine frame in
 	 *	~NonPostingInvoker (via calleePromise.selfSchedHandle).
 	 *

@@ -8,7 +8,7 @@
 
 namespace sscl {
 
-namespace puppet_application_detail {
+namespace {
 
 constexpr std::string_view noPuppetThreadsToStartLogMessage =
 	"Mrntt: No puppet threads to start";
@@ -19,14 +19,18 @@ constexpr std::string_view noPuppetThreadsToResumeLogMessage =
 constexpr std::string_view noPuppetThreadsToExitLogMessage =
 	"Mrntt: No puppet threads to exit";
 
-using PuppetLifetimeInvoker = PuppetThread::ViralThreadLifetimeMgmtInvoker;
-using PuppetLifetimeGroup = co::Group<PuppetLifetimeInvoker>;
+} // namespace
 
-void addAllPuppetLifetimeInvokersToGroup(
-	PuppetLifetimeGroup &group,
-	std::vector<PuppetLifetimeInvoker> &invokers,
-	const std::vector<std::shared_ptr<PuppetThread>> &componentThreads,
-	PuppetThread::ThreadOp threadOp)
+PuppetApplication::PuppetApplication(
+	const std::vector<std::shared_ptr<PuppetThread>> &threads)
+:	componentThreads(threads)
+{
+}
+
+void PuppetApplication::addAllPuppetLifetimeInvokersToGroup(
+	PuppetLifetimeMgmtGroup &group,
+	std::vector<PuppetLifetimeMgmtInvoker> &invokers,
+	PuppetThread::ThreadOp threadOp) const
 {
 	invokers.reserve(componentThreads.size());
 
@@ -58,40 +62,8 @@ void addAllPuppetLifetimeInvokersToGroup(
 	}
 }
 
-co::NonViralNonPostingInvoker genericAllPuppetThreadsLifetimeOpCReq(
-	const std::vector<std::shared_ptr<PuppetThread>> &componentThreads,
-	PuppetThread::ThreadOp threadOp,
-	std::string_view emptyThreadsLogMessage,
-	[[maybe_unused]] std::exception_ptr &exceptionPtr,
-	[[maybe_unused]] std::function<void()> callback)
-{
-	if (componentThreads.empty())
-	{
-		std::cout << emptyThreadsLogMessage << "\n";
-		co_return;
-	}
-
-	PuppetLifetimeGroup group;
-	std::vector<PuppetLifetimeInvoker> invokers;
-
-	addAllPuppetLifetimeInvokersToGroup(
-		group, invokers, componentThreads, threadOp);
-
-	co_await group.getAwaitAllSettlementsInvoker();
-	group.checkForAndReThrowGroupExceptions();
-
-	co_return;
-}
-
-} // namespace puppet_application_detail
-
-PuppetApplication::PuppetApplication(
-	const std::vector<std::shared_ptr<PuppetThread>> &threads)
-:	componentThreads(threads)
-{
-}
-
-co::NonViralNonPostingInvoker PuppetApplication::joltAllPuppetThreadsCReq(
+co::ViralNonPostingInvoker<void>
+PuppetApplication::joltAllPuppetThreadsCReq(
 	[[maybe_unused]] std::exception_ptr &exceptionPtr,
 	[[maybe_unused]] std::function<void()> callback)
 {
@@ -108,64 +80,94 @@ co::NonViralNonPostingInvoker PuppetApplication::joltAllPuppetThreadsCReq(
 		co_return;
 	}
 
-	puppet_application_detail::PuppetLifetimeGroup group;
-	std::vector<puppet_application_detail::PuppetLifetimeInvoker> invokers;
+	PuppetLifetimeMgmtGroup group;
+	std::vector<PuppetLifetimeMgmtInvoker> invokers;
 
-	puppet_application_detail::addAllPuppetLifetimeInvokersToGroup(
-		group, invokers, componentThreads, PuppetThread::ThreadOp::JOLT);
-
-	co_await group.getAwaitAllSettlementsInvoker();
+	addAllPuppetLifetimeInvokersToGroup(
+		group, invokers, PuppetThread::ThreadOp::JOLT);
+	PuppetLifetimeMgmtGroup::AwaitAllSettlementsInvoker groupAwaitAll(
+		group);
+	co_await groupAwaitAll;
 	group.checkForAndReThrowGroupExceptions();
 
 	threadsHaveBeenJolted = true;
 	co_return;
 }
 
-co::NonViralNonPostingInvoker PuppetApplication::startAllPuppetThreadsCReq(
-	std::exception_ptr &exceptionPtr, std::function<void()> callback)
+co::ViralNonPostingInvoker<void>
+PuppetApplication::allPuppetThreadsLifetimeOpCReq(
+	[[maybe_unused]] std::exception_ptr &exceptionPtr,
+	[[maybe_unused]] std::function<void()> callback,
+	PuppetThread::ThreadOp threadOp,
+	std::string_view emptyThreadsLogMessage)
 {
-	return puppet_application_detail::genericAllPuppetThreadsLifetimeOpCReq(
-		componentThreads, PuppetThread::ThreadOp::START,
-		puppet_application_detail::noPuppetThreadsToStartLogMessage,
-		exceptionPtr, callback);
+	if (componentThreads.empty())
+	{
+		std::cout << emptyThreadsLogMessage << "\n";
+		co_return;
+	}
+
+	PuppetLifetimeMgmtGroup group;
+	std::vector<PuppetLifetimeMgmtInvoker> invokers;
+
+	addAllPuppetLifetimeInvokersToGroup(group, invokers, threadOp);
+	PuppetLifetimeMgmtGroup::AwaitAllSettlementsInvoker groupAwaitAll(
+		group);
+	co_await groupAwaitAll;
+	group.checkForAndReThrowGroupExceptions();
+
+	co_return;
 }
 
-co::NonViralNonPostingInvoker PuppetApplication::pauseAllPuppetThreadsCReq(
+co::ViralNonPostingInvoker<void>
+PuppetApplication::startAllPuppetThreadsCReq(
 	std::exception_ptr &exceptionPtr, std::function<void()> callback)
 {
-	return puppet_application_detail::genericAllPuppetThreadsLifetimeOpCReq(
-		componentThreads, PuppetThread::ThreadOp::PAUSE,
-		puppet_application_detail::noPuppetThreadsToPauseLogMessage,
-		exceptionPtr, callback);
+	return allPuppetThreadsLifetimeOpCReq(
+		exceptionPtr, std::move(callback),
+		PuppetThread::ThreadOp::START,
+		noPuppetThreadsToStartLogMessage);
 }
 
-co::NonViralNonPostingInvoker PuppetApplication::resumeAllPuppetThreadsCReq(
+co::ViralNonPostingInvoker<void>
+PuppetApplication::pauseAllPuppetThreadsCReq(
 	std::exception_ptr &exceptionPtr, std::function<void()> callback)
 {
-	return puppet_application_detail::genericAllPuppetThreadsLifetimeOpCReq(
-		componentThreads, PuppetThread::ThreadOp::RESUME,
-		puppet_application_detail::noPuppetThreadsToResumeLogMessage,
-		exceptionPtr, callback);
+	return allPuppetThreadsLifetimeOpCReq(
+		exceptionPtr, std::move(callback),
+		PuppetThread::ThreadOp::PAUSE,
+		noPuppetThreadsToPauseLogMessage);
 }
 
-co::NonViralNonPostingInvoker PuppetApplication::exitAllPuppetThreadsCReq(
+co::ViralNonPostingInvoker<void>
+PuppetApplication::resumeAllPuppetThreadsCReq(
+	std::exception_ptr &exceptionPtr, std::function<void()> callback)
+{
+	return allPuppetThreadsLifetimeOpCReq(
+		exceptionPtr, std::move(callback),
+		PuppetThread::ThreadOp::RESUME,
+		noPuppetThreadsToResumeLogMessage);
+}
+
+co::ViralNonPostingInvoker<void>
+PuppetApplication::exitAllPuppetThreadsCReq(
 	[[maybe_unused]] std::exception_ptr &exceptionPtr,
 	[[maybe_unused]] std::function<void()> callback)
 {
 	if (componentThreads.empty())
 	{
-		std::cout << puppet_application_detail::noPuppetThreadsToExitLogMessage
-			<< "\n";
+		std::cout << noPuppetThreadsToExitLogMessage << "\n";
 		co_return;
 	}
 
-	puppet_application_detail::PuppetLifetimeGroup group;
-	std::vector<puppet_application_detail::PuppetLifetimeInvoker> invokers;
+	PuppetLifetimeMgmtGroup group;
+	std::vector<PuppetLifetimeMgmtInvoker> invokers;
 
-	puppet_application_detail::addAllPuppetLifetimeInvokersToGroup(
-		group, invokers, componentThreads, PuppetThread::ThreadOp::EXIT);
-
-	co_await group.getAwaitAllSettlementsInvoker();
+	addAllPuppetLifetimeInvokersToGroup(
+		group, invokers, PuppetThread::ThreadOp::EXIT);
+	PuppetLifetimeMgmtGroup::AwaitAllSettlementsInvoker groupAwaitAll(
+		group);
+	co_await groupAwaitAll;
 	group.checkForAndReThrowGroupExceptions();
 
 	for (auto &thread : componentThreads) {
@@ -179,7 +181,6 @@ void PuppetApplication::distributeAndPinThreadsAcrossCpus()
 {
 	int cpuCount = ComponentThread::getAvailableCpuCount();
 
-	// Distribute and pin threads across CPUs
 	int threadIndex = 0;
 	for (auto& thread : componentThreads)
 	{

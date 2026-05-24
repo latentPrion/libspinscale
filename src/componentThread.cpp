@@ -8,6 +8,7 @@
 #include <spinscale/cps/asynchronousContinuation.h>
 #include <spinscale/cps/callback.h>
 #include <spinscale/cps/callableTracer.h>
+#include <spinscale/co/invokers.h>
 #include <spinscale/component.h>
 #include <spinscale/componentThread.h>
 

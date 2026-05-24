@@ -5,7 +5,10 @@
 #include <exception>
 #include <functional>
 #include <memory>
+#include <string_view>
 #include <vector>
+
+#include <spinscale/co/group.h>
 #include <spinscale/co/invokers.h>
 #include <spinscale/componentThread.h>
 
@@ -19,22 +22,30 @@ public:
 		const std::vector<std::shared_ptr<PuppetThread>> &threads);
 	~PuppetApplication() = default;
 
-	co::NonViralNonPostingInvoker joltAllPuppetThreadsCReq(
+	co::ViralNonPostingInvoker<void> joltAllPuppetThreadsCReq(
 		std::exception_ptr &exceptionPtr, std::function<void()> callback);
-	co::NonViralNonPostingInvoker startAllPuppetThreadsCReq(
+	co::ViralNonPostingInvoker<void> startAllPuppetThreadsCReq(
 		std::exception_ptr &exceptionPtr, std::function<void()> callback);
-	co::NonViralNonPostingInvoker pauseAllPuppetThreadsCReq(
+	co::ViralNonPostingInvoker<void> pauseAllPuppetThreadsCReq(
 		std::exception_ptr &exceptionPtr, std::function<void()> callback);
-	co::NonViralNonPostingInvoker resumeAllPuppetThreadsCReq(
+	co::ViralNonPostingInvoker<void> resumeAllPuppetThreadsCReq(
 		std::exception_ptr &exceptionPtr, std::function<void()> callback);
-	co::NonViralNonPostingInvoker exitAllPuppetThreadsCReq(
+	co::ViralNonPostingInvoker<void> exitAllPuppetThreadsCReq(
 		std::exception_ptr &exceptionPtr, std::function<void()> callback);
 
 	// CPU distribution method
 	void distributeAndPinThreadsAcrossCpus();
 
 protected:
-	// Collection of PuppetThread instances
+	using PuppetLifetimeMgmtInvoker =
+		PuppetThread::ViralThreadLifetimeMgmtInvoker;
+	using PuppetLifetimeMgmtGroup = co::Group<PuppetLifetimeMgmtInvoker>;
+
+	void addAllPuppetLifetimeInvokersToGroup(
+		PuppetLifetimeMgmtGroup &group,
+		std::vector<PuppetLifetimeMgmtInvoker> &invokers,
+		PuppetThread::ThreadOp threadOp) const;
+
 	std::vector<std::shared_ptr<PuppetThread>> componentThreads;
 
 	/**
@@ -57,6 +68,13 @@ protected:
 	 * a synchronization point for the entire system initialization.
 	 */
 	bool threadsHaveBeenJolted = false;
+
+private:
+	co::ViralNonPostingInvoker<void> allPuppetThreadsLifetimeOpCReq(
+		std::exception_ptr &exceptionPtr,
+		std::function<void()> callback,
+		PuppetThread::ThreadOp threadOp,
+		std::string_view emptyThreadsLogMessage);
 };
 
 } // namespace sscl

@@ -6,6 +6,7 @@
 #include <exception>
 #include <functional>
 #include <iostream>
+#include <typeinfo>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -267,6 +268,22 @@ struct PostingPromise
 	postBackStatus(*this)
 	{}
 
+	/**	Member coroutines pass the implicit object parameter before explicit
+	 *	(exceptionPtr, callback, ...) args. Discard the object and delegate to
+	 *	the free-function constructor shape.
+	 */
+	template <typename ObjectArg, typename... TailArgs>
+	requires (!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>)
+	PostingPromise(
+		ObjectArg &&,
+		std::exception_ptr &_callerExceptionPtr,
+		std::function<void()> _callerLambda,
+		TailArgs &&...) noexcept
+	: PostingPromise(
+		_callerExceptionPtr,
+		std::move(_callerLambda))
+	{}
+
 	~PostingPromise() noexcept
 	{
 #ifdef CONFIG_LIBSSCL_DEBUG_CO
@@ -336,6 +353,19 @@ struct TaggedPostingPromise
 
 	template <typename... TailArgs>
 	TaggedPostingPromise(
+		std::exception_ptr &_exceptionPtr,
+		std::function<void()> _callerLambda,
+		TailArgs &&... tailArgs) noexcept
+	:	PostingPromise<T>(
+			_exceptionPtr,
+			std::move(_callerLambda),
+			std::forward<TailArgs>(tailArgs)...)
+	{}
+
+	template <typename ObjectArg, typename... TailArgs>
+	requires (!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>)
+	TaggedPostingPromise(
+		ObjectArg &&,
 		std::exception_ptr &_exceptionPtr,
 		std::function<void()> _callerLambda,
 		TailArgs &&... tailArgs) noexcept
