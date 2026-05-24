@@ -15,6 +15,21 @@ class Qutex;
 
 /**
  * @brief LockSet - Manages a collection of locks for acquisition/release
+ *
+ * LockSet exists only because the CPS re-enqueuing model had no way to acquire
+ * locks in a fine-grained way. A LockerAndInvoker could re-post only the entire
+ * continuation, and only before that continuation began executing; there was no
+ * mechanism to re-enqueue individual segments within a continuation. The
+ * practical consequence was that all required Qutexes had to be acquired at
+ * once up front, before the continuation body could run at all.
+ *
+ * releaseQutexEarly() was a partial workaround for finer-grained control, but
+ * it only helped on the release side and did not solve the fundamental problem
+ * of acquiring locks one-at-a-time mid-sequence.
+ *
+ * co::CoQutex supersedes this abstraction: coroutines can co_await individual
+ * locks at the points where they are actually needed, which is the finer control
+ * LockSet and releaseQutexEarly() were aiming for with limited success.
  */
 class LockSet
 {
