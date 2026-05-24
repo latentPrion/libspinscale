@@ -24,7 +24,7 @@
 namespace sscl::co {
 
 template <typename PromiseType, typename T>
-class PostingInvoker;
+class Invoker;
 
 template <typename T>
 struct PostingPromise
@@ -272,7 +272,7 @@ protected:
 	}
 
 	template <typename, typename>
-	friend class PostingInvoker;
+	friend class Invoker;
 };
 
 template <typename T, typename ThreadTag>

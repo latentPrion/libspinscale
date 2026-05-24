@@ -223,7 +223,7 @@ struct NonPostingPromise
 	PromiseChainLink *callerChainLink = nullptr;
 
 	template <typename, typename>
-	friend class NonPostingInvoker;
+	friend class Invoker;
 };
 
 } // namespace sscl::co

@@ -19,7 +19,7 @@ namespace sscl::co {
  *	PostingPromiseTemplate<void> (no return-value path to a caller).
  *
  *	The invoker must outlive the callee frame: do not discard the return object
- *	from get_return_object(). ~PostingInvoker destroys the callee frame.
+ *	from get_return_object(). ~Invoker destroys the callee frame.
  */
 template <template <typename> class PostingPromiseTemplate>
 struct NonViralPostingInvoker
@@ -77,7 +77,7 @@ struct NonViralPostingInvoker
  *	target chosen by the posting-promise alias, e.g. BodyPostingPromise<int>).
  *
  *	The invoker must outlive the callee frame until results are read.
- *	~PostingInvoker destroys the callee frame (not await_resume).
+ *	~Invoker destroys the callee frame (not await_resume).
  */
 template <template <typename> class PostingPromiseTemplate, typename T>
 struct ViralPostingInvoker
@@ -153,7 +153,7 @@ struct ViralPostingInvoker
  *	from final_suspend (no cross-thread posting).
  *
  *	The invoker must outlive the callee frame: do not discard the return object
- *	from get_return_object(). ~NonPostingInvoker destroys the callee frame.
+ *	from get_return_object(). ~Invoker destroys the callee frame.
  */
 struct NonViralNonPostingInvoker
 :	public NonPostingInvoker<NonPostingPromise<void>, void>
