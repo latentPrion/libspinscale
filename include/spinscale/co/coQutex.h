@@ -6,6 +6,7 @@
 #include <coroutine>
 #include <deque>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 
 #ifdef CONFIG_LIBSSCL_DEBUG_CO
@@ -28,6 +29,15 @@ public:
 	class ReleaseHandle;
 
 	CoQutex() noexcept = default;
+
+	CoQutex([[maybe_unused]] const std::string &_name) noexcept
+	:
+#ifdef CONFIG_ENABLE_DEBUG_LOCKS
+	name(_name),
+#endif
+	isOwned(false)
+	{}
+
 	CoQutex(const CoQutex &) = delete;
 	CoQutex(CoQutex &&) noexcept = delete;
 	CoQutex &operator=(const CoQutex &) = delete;
@@ -77,7 +87,13 @@ public:
 					std::cout << __func__ << ": " << std::this_thread::get_id() << " Walking caller promise chain.\n";
 #endif
 					if (link.holdsAcquiredLock(coQutex)) {
-						throw std::runtime_error("Deadlock detected: CoQutex re-acquire on caller promise chain.");
+						std::string message =
+							"Deadlock detected: CoQutex re-acquire on caller promise chain";
+#ifdef CONFIG_ENABLE_DEBUG_LOCKS
+						message += " (" + coQutex.name + ")";
+#endif
+						message += ".";
+						throw std::runtime_error(message);
 					}
 				});
 
@@ -130,6 +146,9 @@ private:
 		waitingCoroutines.pop_front();
 	}
 
+#ifdef CONFIG_ENABLE_DEBUG_LOCKS
+	std::string name;
+#endif
 	sscl::SpinLock spinLock;
 	bool isOwned = false;
 	std::deque<AcquireInvocationAndSuspensionPolicy::WaitingCoroutine> waitingCoroutines;
