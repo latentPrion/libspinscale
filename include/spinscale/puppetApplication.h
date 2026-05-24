@@ -2,8 +2,6 @@
 #define PUPPET_APPLICATION_H
 
 #include <config.h>
-#include <exception>
-#include <functional>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -22,16 +20,11 @@ public:
 		const std::vector<std::shared_ptr<PuppetThread>> &threads);
 	~PuppetApplication() = default;
 
-	co::ViralNonPostingInvoker<void> joltAllPuppetThreadsCReq(
-		std::exception_ptr &exceptionPtr, std::function<void()> callback);
-	co::ViralNonPostingInvoker<void> startAllPuppetThreadsCReq(
-		std::exception_ptr &exceptionPtr, std::function<void()> callback);
-	co::ViralNonPostingInvoker<void> pauseAllPuppetThreadsCReq(
-		std::exception_ptr &exceptionPtr, std::function<void()> callback);
-	co::ViralNonPostingInvoker<void> resumeAllPuppetThreadsCReq(
-		std::exception_ptr &exceptionPtr, std::function<void()> callback);
-	co::ViralNonPostingInvoker<void> exitAllPuppetThreadsCReq(
-		std::exception_ptr &exceptionPtr, std::function<void()> callback);
+	co::ViralNonPostingInvoker<void> joltAllPuppetThreadsCReq();
+	co::ViralNonPostingInvoker<void> startAllPuppetThreadsCReq();
+	co::ViralNonPostingInvoker<void> pauseAllPuppetThreadsCReq();
+	co::ViralNonPostingInvoker<void> resumeAllPuppetThreadsCReq();
+	co::ViralNonPostingInvoker<void> exitAllPuppetThreadsCReq();
 
 	// CPU distribution method
 	void distributeAndPinThreadsAcrossCpus();
@@ -71,8 +64,6 @@ protected:
 
 private:
 	co::ViralNonPostingInvoker<void> allPuppetThreadsLifetimeOpCReq(
-		std::exception_ptr &exceptionPtr,
-		std::function<void()> callback,
 		PuppetThread::ThreadOp threadOp,
 		std::string_view emptyThreadsLogMessage);
 };

@@ -63,9 +63,7 @@ void PuppetApplication::addAllPuppetLifetimeInvokersToGroup(
 }
 
 co::ViralNonPostingInvoker<void>
-PuppetApplication::joltAllPuppetThreadsCReq(
-	[[maybe_unused]] std::exception_ptr &exceptionPtr,
-	[[maybe_unused]] std::function<void()> callback)
+PuppetApplication::joltAllPuppetThreadsCReq()
 {
 	if (threadsHaveBeenJolted)
 	{
@@ -94,8 +92,6 @@ PuppetApplication::joltAllPuppetThreadsCReq(
 
 co::ViralNonPostingInvoker<void>
 PuppetApplication::allPuppetThreadsLifetimeOpCReq(
-	[[maybe_unused]] std::exception_ptr &exceptionPtr,
-	[[maybe_unused]] std::function<void()> callback,
 	PuppetThread::ThreadOp threadOp,
 	std::string_view emptyThreadsLogMessage)
 {
@@ -116,39 +112,31 @@ PuppetApplication::allPuppetThreadsLifetimeOpCReq(
 }
 
 co::ViralNonPostingInvoker<void>
-PuppetApplication::startAllPuppetThreadsCReq(
-	std::exception_ptr &exceptionPtr, std::function<void()> callback)
+PuppetApplication::startAllPuppetThreadsCReq()
 {
 	return allPuppetThreadsLifetimeOpCReq(
-		exceptionPtr, std::move(callback),
 		PuppetThread::ThreadOp::START,
 		noPuppetThreadsToStartLogMessage);
 }
 
 co::ViralNonPostingInvoker<void>
-PuppetApplication::pauseAllPuppetThreadsCReq(
-	std::exception_ptr &exceptionPtr, std::function<void()> callback)
+PuppetApplication::pauseAllPuppetThreadsCReq()
 {
 	return allPuppetThreadsLifetimeOpCReq(
-		exceptionPtr, std::move(callback),
 		PuppetThread::ThreadOp::PAUSE,
 		noPuppetThreadsToPauseLogMessage);
 }
 
 co::ViralNonPostingInvoker<void>
-PuppetApplication::resumeAllPuppetThreadsCReq(
-	std::exception_ptr &exceptionPtr, std::function<void()> callback)
+PuppetApplication::resumeAllPuppetThreadsCReq()
 {
 	return allPuppetThreadsLifetimeOpCReq(
-		exceptionPtr, std::move(callback),
 		PuppetThread::ThreadOp::RESUME,
 		noPuppetThreadsToResumeLogMessage);
 }
 
 co::ViralNonPostingInvoker<void>
-PuppetApplication::exitAllPuppetThreadsCReq(
-	std::exception_ptr &exceptionPtr,
-	std::function<void()> callback)
+PuppetApplication::exitAllPuppetThreadsCReq()
 {
 	if (componentThreads.empty())
 	{
@@ -157,7 +145,6 @@ PuppetApplication::exitAllPuppetThreadsCReq(
 	}
 
 	co_await allPuppetThreadsLifetimeOpCReq(
-		exceptionPtr, std::move(callback),
 		PuppetThread::ThreadOp::EXIT,
 		noPuppetThreadsToExitLogMessage);
 
