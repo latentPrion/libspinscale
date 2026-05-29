@@ -35,6 +35,11 @@ namespace sscl {
 class SyncCancelerForAsyncWork
 {
 public:
+	struct Resources
+	{
+		bool shouldContinue = false;
+	};
+
 	SyncCancelerForAsyncWork() = default;
 
 	void startAcceptingWork()
@@ -56,8 +61,11 @@ public:
 	bool isCancellationRequested()
 	{
 		sscl::SpinLock::Guard guard(s.lock);
-		return !s.rsrc.shouldContinue;
+		return isCancellationRequestedUnlocked();
 	}
+
+	bool isCancellationRequestedUnlocked() const
+		{ return !s.rsrc.shouldContinue; }
 
 	template<typename Body>
 	requires std::invocable<Body>
@@ -71,12 +79,7 @@ public:
 		return true;
 	}
 
-private:
-	struct Resources
-	{
-		bool shouldContinue = false;
-	};
-
+public:
 	sscl::SharedResourceGroup<sscl::SpinLock, Resources> s;
 };
 
