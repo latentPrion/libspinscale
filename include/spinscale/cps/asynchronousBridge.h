@@ -1,7 +1,6 @@
 #ifndef ASYNCHRONOUS_BRIDGE_H
 #define ASYNCHRONOUS_BRIDGE_H
 
-#include <boostAsioLinkageFix.h>
 #include <atomic>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>

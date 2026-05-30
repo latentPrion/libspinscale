@@ -1,7 +1,6 @@
 #ifndef COMPONENT_THREAD_H
 #define COMPONENT_THREAD_H
 
-#include <boostAsioLinkageFix.h>
 #include <atomic>
 #include <thread>
 #include <unordered_map>
