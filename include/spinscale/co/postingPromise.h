@@ -11,7 +11,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 
 #include <spinscale/componentThread.h>
@@ -124,19 +124,19 @@ struct PostingPromise
 	:	public std::suspend_always
 	{
 		InitialSuspendPostingInvoker(
-			boost::asio::io_service &targetIoServiceIn,
+			boost::asio::io_context &targetIoContextIn,
 			std::coroutine_handle<> targetSchedHandleIn) noexcept
-		:	targetIoService(targetIoServiceIn),
+		:	targetIoContext(targetIoContextIn),
 		targetSchedHandle(targetSchedHandleIn)
 		{}
 
 		bool await_suspend(std::coroutine_handle<> const) noexcept
 		{
-			boost::asio::post(targetIoService, targetSchedHandle);
+			boost::asio::post(targetIoContext, targetSchedHandle);
 			return true;
 		}
 
-		boost::asio::io_service &targetIoService;
+		boost::asio::io_context &targetIoContext;
 		std::coroutine_handle<> targetSchedHandle;
 	};
 
@@ -253,8 +253,8 @@ struct PostingPromise
 
 	ReturnValues<T> returnValues;
 	std::function<void()> callerLambda;
-	boost::asio::io_service &callerIoContext =
-		sscl::ComponentThread::getSelf()->getIoService();
+	boost::asio::io_context &callerIoContext =
+		sscl::ComponentThread::getSelf()->getIoContext();
 	std::coroutine_handle<> selfSchedHandle;
 	std::coroutine_handle<void> callerSchedHandle;
 	PromiseChainLink *callerChainLink = nullptr;
@@ -315,7 +315,7 @@ struct TaggedPostingPromise
 		std::cout << __func__ << ": " << std::this_thread::get_id() << " Returning InitialSuspendPostingInvoker.\n";
 #endif
 		return typename PostingPromise<T>::InitialSuspendPostingInvoker(
-			ThreadTag::io_service(),
+			ThreadTag::io_context(),
 			this->selfSchedHandle);
 	}
 };

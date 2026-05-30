@@ -15,7 +15,7 @@ namespace sscl::cps {
  *
  * This class wraps any callable object with metadata (caller function name,
  * line number, and return addresses) to help debug cases where callables
- * posted to boost::asio::io_service have gone out of scope. The metadata
+ * posted to boost::asio::io_context have gone out of scope. The metadata
  * can be accessed from the callable's address when debugging.
  */
 class CallableTracer
@@ -100,7 +100,7 @@ private:
  * - Fallback: nullptr for return addresses
  *
  * Usage:
- *   thread->getIoService().post(
+ *   boost::asio::post(thread->getIoContext(),
  *       STC(std::bind(&SomeClass::method, this, arg1, arg2)));
  */
 #ifdef CONFIG_DEBUG_TRACE_CALLABLES

@@ -4,7 +4,7 @@
 #include <string>
 #include <pthread.h>
 #include <sched.h>
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <spinscale/cps/asynchronousContinuation.h>
 #include <spinscale/cps/callback.h>
 #include <spinscale/cps/callableTracer.h>
@@ -49,7 +49,7 @@ std::shared_ptr<PuppeteerThread> ComponentThread::getPptr()
 void PuppeteerThread::exitLoop(void)
 {
 	keepLooping = false;
-	getIoService().stop();
+	getIoContext().stop();
 	std::cout << name << ": Signaled main loop to exit." << "\n";
 }
 
@@ -104,7 +104,7 @@ public:
 			"JOLT request."
 			<< "\n";
 
-		target->io_service.stop();
+		target->io_context.stop();
 		callOriginalCb();
 	}
 
@@ -130,7 +130,7 @@ public:
 			"exitThread (main queue)." << "\n";
 
 		target->cleanup();
-		target->io_service.stop();
+		target->io_context.stop();
 		callOriginalCb();
 	}
 
@@ -142,8 +142,8 @@ public:
 			"exitThread (pause queue)."<< "\n";
 
 		target->cleanup();
-		target->pause_io_service.stop();
-		target->io_service.stop();
+		target->pause_io_context.stop();
+		target->io_context.stop();
 		callOriginalCb();
 	}
 
@@ -159,8 +159,8 @@ public:
 		 * have a chance to invoke the callback until it's unblocked.
 		 */
 		callOriginalCb();
-		target->pause_io_service.reset();
-		target->pause_io_service.run();
+		target->pause_io_context.restart();
+		target->pause_io_context.run();
 	}
 
 	void resumeThreadReq1_posted(
@@ -170,7 +170,7 @@ public:
 		std::cout << __func__ << ": Thread '" << target->name << "': handling "
 			"resumeThread." << "\n";
 
-		target->pause_io_service.stop();
+		target->pause_io_context.stop();
 		callOriginalCb();
 	}
 };
@@ -210,7 +210,7 @@ void PuppetThread::joltThreadReq(
 	auto request = std::make_shared<ThreadLifetimeMgmtOp>(
 		puppeteer, selfPtr, callback);
 
-	this->getIoService().post(
+		boost::asio::post(this->getIoContext(),
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::joltThreadReq1_posted,
 			request.get(), request)));
@@ -224,7 +224,7 @@ void PuppetThread::startThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callba
 		caller, std::static_pointer_cast<PuppetThread>(shared_from_this()),
 		callback);
 
-	this->getIoService().post(
+		boost::asio::post(this->getIoContext(),
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::startThreadReq1_posted,
 			request.get(), request)));
@@ -237,12 +237,12 @@ void PuppetThread::exitThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callbac
 		caller, std::static_pointer_cast<PuppetThread>(shared_from_this()),
 		callback);
 
-	this->getIoService().post(
+		boost::asio::post(this->getIoContext(),
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::exitThreadReq1_mainQueue_posted,
 			request.get(), request)));
 
-	pause_io_service.post(
+	boost::asio::post(pause_io_context,
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::exitThreadReq1_pauseQueue_posted,
 			request.get(), request)));
@@ -261,7 +261,7 @@ void PuppetThread::pauseThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callba
 		caller, std::static_pointer_cast<PuppetThread>(shared_from_this()),
 		callback);
 
-	this->getIoService().post(
+		boost::asio::post(this->getIoContext(),
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::pauseThreadReq1_posted,
 			request.get(), request)));
@@ -275,13 +275,13 @@ void PuppetThread::resumeThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callb
 			+ ": invoked on puppeteer thread");
 	}
 
-	// Post to the pause_io_service to unblock the paused thread
+	// Post to the pause_io_context to unblock the paused thread
 	std::shared_ptr<ComponentThread> caller = getSelf();
 	auto request = std::make_shared<ThreadLifetimeMgmtOp>(
 		caller, std::static_pointer_cast<PuppetThread>(shared_from_this()),
 		callback);
 
-	pause_io_service.post(
+	boost::asio::post(pause_io_context,
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::resumeThreadReq1_posted,
 			request.get(), request)));

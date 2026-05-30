@@ -76,6 +76,7 @@ find_package(Threads REQUIRED)
 
 # Create the library
 add_library(spinscale SHARED
+	src/boostAsioLinkageFix.cpp
 	src/qutex.cpp
 	src/componentThread.cpp
 	src/component.cpp

@@ -288,8 +288,8 @@ void Qutex::backoff(
 	 *		(Assume that Lv2 was not at the front of the common qutex's
 	 *		internal queue -- it only needed to be in the top 66%.)
 	 *	Lv1 tries to acquire the common lock and fails. It gets taken off of
-	 *		its io_service. It's now asleep until it gets
-	 *		re-added into an io_service.
+	 *		its io_context. It's now asleep until it gets
+	 *		re-added into an io_context.
 	 *	Lv2 fails to acquire the other 2 locks it needs and backoff()s from
 	 *		the common lock it shares with Lv1.
 	 *
@@ -357,7 +357,7 @@ void Qutex::release()
 	 *	Just before Lv1 can acquire the common lock, Lv2 acquires it now,
 	 *		because it only needs to be in the top 66% to succeed.
 	 *	Lv1 checks the currOwner and sees that it's owned. Lv1 is now
-	 *		dequeued from its io_service. It won't be awakened until someone
+	 *		dequeued from its io_context. It won't be awakened until someone
 	 *		awakens it.
 	 *	Lv2 finishes its critical section and releas()es the common lock.
 	 *	Lv2 was not at the front of the qutexQ, so it does NOT awaken the

@@ -8,7 +8,7 @@
 #include <memory>
 #include <thread>
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 
 #include <spinscale/componentThread.h>
@@ -31,7 +31,7 @@ public:
 	{
 	public:
 		explicit WaitingCoroutineBase(
-			boost::asio::io_service &callerIoContextIn) noexcept
+			boost::asio::io_context &callerIoContextIn) noexcept
 		: callerIoContext(callerIoContextIn)
 		{}
 
@@ -40,7 +40,7 @@ public:
 		virtual void post() noexcept = 0;
 
 	public:
-		boost::asio::io_service &callerIoContext;
+		boost::asio::io_context &callerIoContext;
 	};
 
 	template <typename Promise>
@@ -49,7 +49,7 @@ public:
 	{
 	public:
 		TypedWaitingCoroutine(
-			boost::asio::io_service &callerIoContextIn,
+			boost::asio::io_context &callerIoContextIn,
 			std::coroutine_handle<Promise> callerSchedHandleIn) noexcept
 		: WaitingCoroutineBase(callerIoContextIn),
 		  callerSchedHandle(callerSchedHandleIn)
@@ -83,8 +83,8 @@ public:
 		template <typename Promise>
 		bool await_suspend(std::coroutine_handle<Promise> cvCallerSchedHandle) noexcept
 		{
-			boost::asio::io_service &cvCallerIoContext =
-				sscl::ComponentThread::getSelf()->getIoService();
+			boost::asio::io_context &cvCallerIoContext =
+				sscl::ComponentThread::getSelf()->getIoContext();
 
 			sscl::SpinLock::Guard guard(parentCv.spinLock);
 			if (parentCv.isSignaled) {
@@ -130,8 +130,8 @@ public:
 		template <typename Promise>
 		DecisionFactors awaitSuspend(std::coroutine_handle<Promise> cvCallerSchedHandle) noexcept
 		{
-			boost::asio::io_service &cvCallerIoContext =
-				sscl::ComponentThread::getSelf()->getIoService();
+			boost::asio::io_context &cvCallerIoContext =
+				sscl::ComponentThread::getSelf()->getIoContext();
 
 			parentCv.spinLock.acquire();
 			if (parentCv.isSignaled)
@@ -197,7 +197,7 @@ public:
 	template <typename Promise>
 	void enqueueWaitingCoroutine(
 		std::coroutine_handle<Promise> handle,
-		boost::asio::io_service &ctx) noexcept
+		boost::asio::io_context &ctx) noexcept
 	{
 		waitingCoroutines.push_back(
 			std::make_unique<TypedWaitingCoroutine<Promise>>(ctx, handle));

@@ -90,7 +90,7 @@ public:
  * LockedNonPostedAsynchronousContinuation because the only way to implement
  * non-posted locking would be via busy-spinning or sleeplocks. This would
  * eliminate the throughput advantage from our Qspinning mechanism, which
- * relies on re-posting to the io_service queue when locks are unavailable.
+ * relies on re-posting to the io_context queue when locks are unavailable.
  */
 template <class OriginalCbFnT>
 class NonPostedAsynchronousContinuation
@@ -141,7 +141,7 @@ public:
 		if (AsynchronousContinuation<OriginalCbFnT>::originalCallback
 			.callbackFn)
 		{
-			caller->getIoService().post(
+			boost::asio::post(caller->getIoContext(),
 				STC(std::bind(
 					AsynchronousContinuation<OriginalCbFnT>::originalCallback
 						.callbackFn,

@@ -3,34 +3,35 @@
 
 #include <boostAsioLinkageFix.h>
 #include <atomic>
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/post.hpp>
 
 namespace sscl::cps {
 
 class AsynchronousBridge
 {
 public:
-	AsynchronousBridge(boost::asio::io_service &io_service)
-	: isAsyncOperationComplete(false), io_service(io_service)
+	AsynchronousBridge(boost::asio::io_context &io_context)
+	: isAsyncOperationComplete(false), io_context(io_context)
 	{}
 
 	void setAsyncOperationComplete(void)
 	{
 		/**		EXPLANATION:
 		 * This empty post()ed message is necessary to ensure that the thread
-		 * that's waiting on the io_service is signaled to wake up and check
-		 * the io_service's queue.
+		 * that's waiting on the io_context is signaled to wake up and check
+		 * the io_context's queue.
 		 */
 		isAsyncOperationComplete.store(true);
-		io_service.post([]{});
+		boost::asio::post(io_context, []{});
 	}
 
-	void waitForAsyncOperationCompleteOrIoServiceStopped(void)
+	void waitForAsyncOperationCompleteOrIoContextStopped(void)
 	{
 		for (;;)
 		{
-			io_service.run_one();
-			if (isAsyncOperationComplete.load() || io_service.stopped())
+			io_context.run_one();
+			if (isAsyncOperationComplete.load() || io_context.stopped())
 				{ break; }
 
 			/**	EXPLANATION:
@@ -45,12 +46,12 @@ public:
 		}
 	}
 
-	bool exitedBecauseIoServiceStopped(void) const
-		{ return io_service.stopped(); }
+	bool exitedBecauseIoContextStopped(void) const
+		{ return io_context.stopped(); }
 
 private:
 	std::atomic<bool> isAsyncOperationComplete;
-	boost::asio::io_service &io_service;
+	boost::asio::io_context &io_context;
 };
 
 } // namespace sscl::cps

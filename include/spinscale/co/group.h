@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 
 #include <spinscale/componentThread.h>
@@ -486,7 +486,7 @@ struct Group
 			 * would be impossible.
 			 *
 			 * So we should be able to call resume() directly here without
-			 * post()ing to ComponentThread::getSelf()->getIoService().
+			 * post()ing to ComponentThread::getSelf()->getIoContext().
 			 *
 			 *	EXPLANATION:
 			 * However, in order to ensure that we keep this adapter coro
@@ -494,7 +494,7 @@ struct Group
 			 * directly calling the handle.
 			 */
 			boost::asio::post(
-				sscl::ComponentThread::getSelf()->getIoService(),
+				sscl::ComponentThread::getSelf()->getIoContext(),
 				groupAwaiterSchedHandleToWake);
 		}
 

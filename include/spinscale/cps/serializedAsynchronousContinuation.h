@@ -65,7 +65,7 @@ public:
 	 * @brief LockerAndInvoker - Template class for lockvoking mechanism
 	 *
 	 * This class wraps a std::bind result and provides locking functionality.
-	 * When locks cannot be acquired, the object re-posts itself to the io_service
+	 * When locks cannot be acquired, the object re-posts itself to the io_context
 	 * queue, implementing the "spinqueueing" pattern.
 	 */
 	template <class InvocationTargetT>
@@ -74,10 +74,10 @@ public:
 	{
 	public:
 		/**
-		 * @brief Constructor that immediately posts to io_service
+		 * @brief Constructor that immediately posts to io_context
 		 * @param serializedContinuation Reference to the serialized continuation
-		 *	containing LockSet and target io_service
-		 * @param target The ComponentThread whose io_service to post to
+		 *	containing LockSet and target io_context
+		 * @param target The ComponentThread whose io_context to post to
 		 * @param invocationTarget The std::bind result to invoke when locks are acquired
 		 */
 		LockerAndInvoker(
@@ -127,7 +127,7 @@ public:
 		}
 
 		/**
-		 * @brief Awaken this lockvoker by posting it to its io_service
+		 * @brief Awaken this lockvoker by posting it to its io_context
 		 * @param forceAwaken If true, post even if already awake
 		 */
 		void awaken(bool forceAwaken = false) override
@@ -138,7 +138,7 @@ public:
 			if (prevVal == true && !forceAwaken)
 				{ return; }
 
-			target->getIoService().post(*this);
+			boost::asio::post(target->getIoContext(), *this);
 		}
 
 		size_t getLockSetSize() const override
@@ -161,14 +161,14 @@ public:
 		 * the AsyncContinuation sh_ptr (which the Lockvoker contains within
 		 * itself) alive without wasting too much memory.
 		 *
-		 * This way the io_service objects can remove the lockvoker from
+		 * This way the io_context objects can remove the lockvoker from
 		 * their queues and there'll be a copy of the lockvoker in each
 		 * Qutex's queue.
 		 *
 		 * For non-serialized, posted continuations, they won't be removed
-		 * from the io_service queue until they're executed, so there's no
+		 * from the io_context queue until they're executed, so there's no
 		 * need to create copies of them. Lockvokers are removed from their
-		 * io_service, potentially without being executed if they fail to
+		 * io_context, potentially without being executed if they fail to
 		 * acquire all locks.
 		 */
 		void registerInLockSet()
@@ -185,7 +185,7 @@ public:
 		 * 
 		 * Sets isAwake=true before calling awaken with forceAwaken to ensure
 		 * that none of the locks we just registered with awaken()s a duplicate
-		 * copy of this lockvoker on the io_service.
+		 * copy of this lockvoker on the io_context.
 		 */
 		void firstWake()
 		{
@@ -213,8 +213,17 @@ public:
 			{ return isDeadlockLikely(); }
 
 #ifdef CONFIG_ENABLE_DEBUG_LOCKS
-		struct obsolete {
-			bool traceContinuationHistoryForGridlockOn(Qutex &firstFailedQutex);
+		friend struct obsolete;
+
+		struct obsolete
+		{
+			explicit obsolete(LockerAndInvoker &_parent) : parent(_parent)
+			{}
+
+			bool traceContinuationHistoryForGridlockOn(
+				Qutex &firstFailedQutex);
+
+			LockerAndInvoker &parent;
 		};
 
 		bool traceContinuationHistoryForDeadlockOn(Qutex &firstFailedQutex);
@@ -435,7 +444,8 @@ SerializedAsynchronousContinuation<OriginalCbFnT>
 		 * should eventually be able to acquire that lock.
 		 */
 		for (std::shared_ptr<AsynchronousContinuationChainLink> currContin =
-				this->serializedContinuation.getCallersContinuationShPtr();
+				parent.serializedContinuation
+					.getCallersContinuationShPtr();
 			currContin != nullptr;
 			currContin = currContin->getCallersContinuationShPtr())
 		{
@@ -484,7 +494,7 @@ void SerializedAsynchronousContinuation<OriginalCbFnT>
 	if (!serializedContinuation.requiredLocks.tryAcquireOrBackOff(
 		*this, firstFailedQutexRet))
 	{
-		// Just allow this lockvoker to be dropped from its io_service.
+		// Just allow this lockvoker to be dropped from its io_context.
 		allowAwakening();
 		if (!deadlockLikely && !gridlockLikely)
 			{ return; }

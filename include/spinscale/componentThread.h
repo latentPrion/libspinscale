@@ -15,7 +15,7 @@
 #include <coroutine>
 #include <cstdint>
 #include <string>
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 #include <spinscale/cps/callback.h>
 
@@ -36,7 +36,8 @@ class ComponentThread
 {
 protected:
 	ComponentThread(ThreadId _id, std::string _name)
-	: id(_id), name(std::move(_name)), work(io_service), keepLooping(true)
+	: id(_id), name(std::move(_name)),
+	work(boost::asio::make_work_guard(io_context)), keepLooping(true)
 	{}
 
 public:
@@ -44,7 +45,7 @@ public:
 
 	void cleanup(void);
 
-	boost::asio::io_service& getIoService(void) { return io_service; }
+	boost::asio::io_context& getIoContext(void) { return io_context; }
 
 	static const std::shared_ptr<ComponentThread> getSelf(void);
 	static bool tlsInitialized(void);
@@ -66,8 +67,9 @@ public:
 public:
 	ThreadId id;
 	std::string name;
-	boost::asio::io_service io_service;
-	boost::asio::io_service::work work;
+	boost::asio::io_context io_context;
+	boost::asio::executor_work_guard<
+		boost::asio::io_context::executor_type> work;
 	std::atomic<bool> keepLooping;
 };
 
@@ -153,7 +155,7 @@ public:
 		preJoltHookFn preJoltFn)
 	:	ComponentThread(_id, std::move(name)),
 	pinnedCpuId(-1),
-	pause_work(pause_io_service),
+	pause_work(boost::asio::make_work_guard(pause_io_context)),
 	entryFnArguments(*this, component, preJoltFn),
 	thread(std::move(entryPoint), std::cref(entryFnArguments))
 	{}
@@ -198,7 +200,7 @@ public:
 				 *	coroutine state while the handler is still unwinding.
 				 */
 				boost::asio::post(
-					ComponentThread::getPptr()->getIoService(),
+					ComponentThread::getPptr()->getIoContext(),
 					[handle]() { handle.resume(); });
 			}}
 		{
@@ -296,8 +298,9 @@ public:
 
 public:
 	int pinnedCpuId;
-	boost::asio::io_service pause_io_service;
-	boost::asio::io_service::work pause_work;
+	boost::asio::io_context pause_io_context;
+	boost::asio::executor_work_guard<
+		boost::asio::io_context::executor_type> pause_work;
 
 public:
 	EntryFnArguments entryFnArguments;

@@ -83,7 +83,7 @@ public:
 	 * time it will leave the qutexQ is when the program terminates.
 	 *
 	 * I'm not sure we'll actually cancal all in-flight async sequences --
-	 * and especially not all those that aren't even in any io_service queues.
+	 * and especially not all those that aren't even in any io_context queues.
 	 * To whatever extent these objects get cleaned up, they'll probably be
 	 * cleaned up in the qutexQ's std::list destructor -- and that won't
 	 * execute any fancy cleanup logic. It'll just clear() out the list.

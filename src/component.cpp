@@ -27,10 +27,10 @@ void PuppetComponent::defaultPuppetMain(
 	if (args.preJoltHook) { args.preJoltHook(thr); }
 
 	/**	FIXME:
-	 * Figure out why we don't call reset() here, and then explicitly document
+	 * Figure out why we don't call restart() here, and then explicitly document
 	 * it.
 	 */
-	thr.getIoService().run();
+	thr.getIoContext().run();
 	thr.initializeTls();
 
 	comp.postJoltHook();
@@ -52,15 +52,15 @@ void PuppetComponent::defaultPuppetMain(
 			/**		EXPLANATION:
 			 * This reset() call is crucial for async bridging patterns
 			 * to work.
-			 * When the outermost thread's io_service is stop()ped (e.g.,
+			 * When the outermost thread's io_context is stop()ped (e.g.,
 			 * from JOLT sequence), it won't process any new work until
-			 * reset() is called, even if nested async operations try to
+			 * restart() is called, even if nested async operations try to
 			 * post work to it. This means async bridges invoked from
 			 * the outermost thread main sequence won't work until this
-			 * reset() call.
+			 * restart() call.
 			 */
-			thr.getIoService().reset();
-			thr.getIoService().run();
+			thr.getIoContext().restart();
+			thr.getIoContext().run();
 		}
 		catch (const std::exception& e)
 		{

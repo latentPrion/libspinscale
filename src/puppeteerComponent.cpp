@@ -16,8 +16,8 @@ void PuppeteerComponent::defaultPuppeteerMain(
 
 	if (args.preJoltHook) { args.preJoltHook(thr); }
 
-	thr.getIoService().reset();
-	thr.getIoService().run();
+	thr.getIoContext().restart();
+	thr.getIoContext().run();
 	thr.initializeTls();
 
 	comp.postJoltHook();
@@ -40,17 +40,17 @@ void PuppeteerComponent::defaultPuppeteerMain(
 
 			try {
 				/**		EXPLANATION:
-				 * This reset() call is crucial for async bridging
+				 * This restart() call is crucial for async bridging
 				 * patterns to work.
-				 * When the outermost thread's io_service is stop()ped
+				 * When the outermost thread's io_context is stop()ped
 				 * (e.g., from JOLT sequence), it won't process any new
-				 * work until reset() is called, even if nested async
+				 * work until restart() is called, even if nested async
 				 * operations try to post work to it. This means async
 				 * bridges invoked from the outermost thread main sequence
-				 * won't work until this reset() call.
+				 * won't work until this restart() call.
 				 */
-				thr.getIoService().reset();
-				thr.getIoService().run();
+				thr.getIoContext().restart();
+				thr.getIoContext().run();
 			}
 			catch (const std::exception& e)
 			{

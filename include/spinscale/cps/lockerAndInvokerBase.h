@@ -39,7 +39,7 @@ public:
 	virtual List::iterator getLockvokerIteratorForQutex(Qutex& qutex) const = 0;
 
 	/**
-	 * @brief Awaken this lockvoker by posting it to its io_service
+	 * @brief Awaken this lockvoker by posting it to its io_context
 	 * @param forceAwaken If true, post even if already awake
 	 */
 	virtual void awaken(bool forceAwaken = false) = 0;
@@ -55,12 +55,12 @@ public:
 	 * 
 	 * Compare by the address of the continuation objects. Why?
 	 * Because there's no guarantee that the lockvoker object that was
-	 * passed in by the io_service invocation is the same object as that
+	 * passed in by the io_context invocation is the same object as that
 	 * which is in the qutexQs. Especially because we make_shared() a
 	 * copy when registerInQutexQueues()ing.
 	 *
 	 * Generally when we "wake" a lockvoker by enqueuing it, boost's
-	 * io_service::post will copy the lockvoker object.
+	 * io_context::post will copy the lockvoker object.
 	 */
 	bool operator==(const LockerAndInvokerBase &other) const
 	{

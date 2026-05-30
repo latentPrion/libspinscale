@@ -14,7 +14,7 @@
 #include <thread>
 #endif
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 
 #include <spinscale/componentThread.h>
@@ -56,7 +56,7 @@ public:
 		{
 			WaitingCoroutine(
 				std::coroutine_handle<void> _callerSchedHandle,
-				boost::asio::io_service &_callerIoContext,
+				boost::asio::io_context &_callerIoContext,
 				PromiseChainLink &_waitingPromise) noexcept
 			: callerSchedHandle(_callerSchedHandle),
 			callerIoContext(_callerIoContext),
@@ -64,7 +64,7 @@ public:
 			{}
 
 			std::coroutine_handle<void> callerSchedHandle;
-			boost::asio::io_service &callerIoContext;
+			boost::asio::io_context &callerIoContext;
 			PromiseChainLink &waitingPromise;
 		};
 
@@ -104,7 +104,7 @@ public:
 			}
 			coQutex.waitingCoroutines.emplace_back(
 				std::coroutine_handle<void>::from_address(callerSchedHandle.address()),
-				sscl::ComponentThread::getSelf()->getIoService(),
+				sscl::ComponentThread::getSelf()->getIoContext(),
 				*acquirerChainLink);
 			return true;
 		}
