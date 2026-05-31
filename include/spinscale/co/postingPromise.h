@@ -6,6 +6,7 @@
 #include <exception>
 #include <functional>
 #include <iostream>
+#include <optional>
 #include <typeinfo>
 #include <thread>
 #include <type_traits>
@@ -16,6 +17,7 @@
 
 #include <spinscale/componentThread.h>
 #include <spinscale/co/coQutex.h>
+#include <spinscale/co/postTarget.h>
 #include <spinscale/co/promiseChainLink.h>
 #include <spinscale/co/promiseReturnOps.h>
 #include <spinscale/co/returnValues.h>
@@ -191,6 +193,7 @@ struct PostingPromise
 	: returnValues(), postBackStatus(*this)
 	{}
 
+	/**	Non-viral entry: post-TO uses ThreadTag default (via TaggedPostingPromise). */
 	template <typename... TailArgs>
 	PostingPromise(
 		std::exception_ptr &_callerExceptionPtr,
@@ -201,12 +204,41 @@ struct PostingPromise
 	postBackStatus(*this)
 	{}
 
-	/**	Member coroutines pass the implicit object parameter before explicit
-	 *	(exceptionPtr, callback, ...) args. Discard the object and delegate to
-	 *	the free-function constructor shape.
-	 */
+	/**	Non-viral entry with explicit post-TO target. */
+	template <typename... TailArgs>
+	PostingPromise(
+		std::exception_ptr &_callerExceptionPtr,
+		std::function<void()> _callerLambda,
+		ExplicitPostTarget _calleePostTarget,
+		TailArgs &&...) noexcept
+	: returnValues(_callerExceptionPtr),
+	callerLambda(std::move(_callerLambda)),
+	postBackStatus(*this),
+	calleePostTarget(std::move(_calleePostTarget))
+	{}
+
+	/**	Viral / free-function entry with explicit post-TO target. */
+	template <typename... TailArgs>
+	PostingPromise(
+		ExplicitPostTarget _calleePostTarget,
+		TailArgs &&...) noexcept
+	: returnValues(),
+	postBackStatus(*this),
+	calleePostTarget(std::move(_calleePostTarget))
+	{}
+
+	/**	Viral / free-function entry: post-TO uses ThreadTag default. */
+	template <typename FirstArg, typename... TailArgs>
+	requires (!is_explicit_post_target_v<std::remove_cvref_t<FirstArg>>)
+	PostingPromise(FirstArg &&, TailArgs &&...) noexcept
+	: PostingPromise()
+	{}
+
+	/**	Member non-viral: peel implicit object parameter. */
 	template <typename ObjectArg, typename... TailArgs>
-	requires (!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>)
+	requires (
+		!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>
+		&& !is_explicit_post_target_v<std::remove_cvref_t<ObjectArg>>)
 	PostingPromise(
 		ObjectArg &&,
 		std::exception_ptr &_callerExceptionPtr,
@@ -215,6 +247,48 @@ struct PostingPromise
 	: PostingPromise(
 		_callerExceptionPtr,
 		std::move(_callerLambda))
+	{}
+
+	/**	Member non-viral with explicit post-TO target. */
+	template <typename ObjectArg, typename... TailArgs>
+	requires (
+		!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>
+		&& !is_explicit_post_target_v<std::remove_cvref_t<ObjectArg>>)
+	PostingPromise(
+		ObjectArg &&,
+		std::exception_ptr &_callerExceptionPtr,
+		std::function<void()> _callerLambda,
+		ExplicitPostTarget _calleePostTarget,
+		TailArgs &&...) noexcept
+	: PostingPromise(
+		_callerExceptionPtr,
+		std::move(_callerLambda),
+		std::move(_calleePostTarget))
+	{}
+
+	/**	Member viral with explicit post-TO target. */
+	template <typename ObjectArg, typename... TailArgs>
+	requires (
+		!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>
+		&& !is_explicit_post_target_v<std::remove_cvref_t<ObjectArg>>)
+	PostingPromise(
+		ObjectArg &&,
+		ExplicitPostTarget _calleePostTarget,
+		TailArgs &&...) noexcept
+	: PostingPromise(std::move(_calleePostTarget))
+	{}
+
+	/**	Member viral: peel implicit object parameter. */
+	template <typename ObjectArg, typename FirstArg, typename... TailArgs>
+	requires (
+		!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>
+		&& !is_explicit_post_target_v<std::remove_cvref_t<ObjectArg>>
+		&& !is_explicit_post_target_v<std::remove_cvref_t<FirstArg>>)
+	PostingPromise(
+		ObjectArg &&,
+		FirstArg &&,
+		TailArgs &&...) noexcept
+	: PostingPromise()
 	{}
 
 	~PostingPromise() noexcept
@@ -255,6 +329,7 @@ struct PostingPromise
 	std::function<void()> callerLambda;
 	boost::asio::io_context &callerIoContext =
 		sscl::ComponentThread::getSelf()->getIoContext();
+	std::optional<ExplicitPostTarget> calleePostTarget;
 	std::coroutine_handle<> selfSchedHandle;
 	std::coroutine_handle<void> callerSchedHandle;
 	PromiseChainLink *callerChainLink = nullptr;
@@ -280,33 +355,7 @@ struct TaggedPostingPromise
 :	public PostingPromise<T>,
 	public PromiseReturnOps<TaggedPostingPromise<T, ThreadTag>, T>
 {
-	TaggedPostingPromise() noexcept
-	:	PostingPromise<T>()
-	{}
-
-	template <typename... TailArgs>
-	TaggedPostingPromise(
-		std::exception_ptr &_exceptionPtr,
-		std::function<void()> _callerLambda,
-		TailArgs &&... tailArgs) noexcept
-	:	PostingPromise<T>(
-			_exceptionPtr,
-			std::move(_callerLambda),
-			std::forward<TailArgs>(tailArgs)...)
-	{}
-
-	template <typename ObjectArg, typename... TailArgs>
-	requires (!std::same_as<std::remove_cvref_t<ObjectArg>, std::exception_ptr>)
-	TaggedPostingPromise(
-		ObjectArg &&,
-		std::exception_ptr &_exceptionPtr,
-		std::function<void()> _callerLambda,
-		TailArgs &&... tailArgs) noexcept
-	:	PostingPromise<T>(
-			_exceptionPtr,
-			std::move(_callerLambda),
-			std::forward<TailArgs>(tailArgs)...)
-	{}
+	using PostingPromise<T>::PostingPromise;
 
 	auto initial_suspend() noexcept
 	{
@@ -314,8 +363,13 @@ struct TaggedPostingPromise
 		std::cout << __func__ << ": " << std::this_thread::get_id() << " About to post selfSchedHandle to " << typeid(ThreadTag).name() << ".\n";
 		std::cout << __func__ << ": " << std::this_thread::get_id() << " Returning InitialSuspendPostingInvoker.\n";
 #endif
+		boost::asio::io_context &postToIoContext =
+			this->calleePostTarget
+				? this->calleePostTarget->ioContext
+				: ThreadTag::io_context();
+
 		return typename PostingPromise<T>::InitialSuspendPostingInvoker(
-			ThreadTag::io_context(),
+			postToIoContext,
 			this->selfSchedHandle);
 	}
 };
