@@ -207,14 +207,14 @@ struct PostingPromise
 	/**	Non-viral entry with explicit post-TO target. */
 	template <typename... TailArgs>
 	PostingPromise(
+		ExplicitPostTarget _calleePostTarget,
 		std::exception_ptr &_callerExceptionPtr,
 		std::function<void()> _callerLambda,
-		ExplicitPostTarget _calleePostTarget,
 		TailArgs &&...) noexcept
 	: returnValues(_callerExceptionPtr),
 	callerLambda(std::move(_callerLambda)),
-	postBackStatus(*this),
-	calleePostTarget(std::move(_calleePostTarget))
+	calleePostTarget(std::move(_calleePostTarget)),
+	postBackStatus(*this)
 	{}
 
 	/**	Viral / free-function entry with explicit post-TO target. */
@@ -256,14 +256,14 @@ struct PostingPromise
 		&& !is_explicit_post_target_v<std::remove_cvref_t<ObjectArg>>)
 	PostingPromise(
 		ObjectArg &&,
+		ExplicitPostTarget _calleePostTarget,
 		std::exception_ptr &_callerExceptionPtr,
 		std::function<void()> _callerLambda,
-		ExplicitPostTarget _calleePostTarget,
 		TailArgs &&...) noexcept
 	: PostingPromise(
+		std::move(_calleePostTarget),
 		_callerExceptionPtr,
-		std::move(_callerLambda),
-		std::move(_calleePostTarget))
+		std::move(_callerLambda))
 	{}
 
 	/**	Member viral with explicit post-TO target. */
