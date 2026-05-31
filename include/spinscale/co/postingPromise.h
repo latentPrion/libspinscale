@@ -223,8 +223,8 @@ struct PostingPromise
 		ExplicitPostTarget _calleePostTarget,
 		TailArgs &&...) noexcept
 	: returnValues(),
-	postBackStatus(*this),
-	calleePostTarget(std::move(_calleePostTarget))
+	calleePostTarget(std::move(_calleePostTarget)),
+	postBackStatus(*this)
 	{}
 
 	/**	Viral / free-function entry: post-TO uses ThreadTag default. */
