@@ -11,6 +11,7 @@
 
 #include <spinscale/spinLock.h>
 #include <spinscale/co/coQutex.h>
+#include <spinscale/co/nonViralCompletion.h>
 #include <spinscale/co/promiseChainLink.h>
 #include <spinscale/co/promiseReturnOps.h>
 #include <spinscale/co/returnValues.h>
@@ -126,12 +127,8 @@ struct NonPostingPromise
 					<< std::this_thread::get_id()
 					<< " Non-viral non-posting: invoking callerLambda directly.\n";
 #endif
-				if (calleePromise.returnValues.myExceptionPtr) {
-					std::rethrow_exception(
-						calleePromise.returnValues.myExceptionPtr);
-				}
-
-				calleePromise.callerLambda();
+				auto callerLambda = std::move(calleePromise.callerLambda);
+				callerLambda();
 				return std::noop_coroutine();
 			}
 

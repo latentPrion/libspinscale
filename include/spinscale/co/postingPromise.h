@@ -17,6 +17,7 @@
 
 #include <spinscale/componentThread.h>
 #include <spinscale/co/coQutex.h>
+#include <spinscale/co/nonViralCompletion.h>
 #include <spinscale/co/postTarget.h>
 #include <spinscale/co/promiseChainLink.h>
 #include <spinscale/co/promiseReturnOps.h>
@@ -164,15 +165,12 @@ struct PostingPromise
 				std::cout << "final_suspend" << ": " << std::this_thread::get_id()
 					<< " Non-viral: posting callerLambda completion to callerIoContext.\n";
 #endif
+				auto callerLambda = std::move(calleePromise.callerLambda);
 				boost::asio::post(
 					calleePromise.callerIoContext,
-					[&calleeRef = calleePromise]()
+					[callerLambda = std::move(callerLambda)]() mutable
 					{
-						if (calleeRef.returnValues.myExceptionPtr) {
-							std::rethrow_exception(calleeRef.returnValues.myExceptionPtr);
-						}
-
-						calleeRef.callerLambda();
+						callerLambda();
 					});
 			}
 			else
