@@ -564,10 +564,10 @@ struct Group
 		memberAdapterCoro(memberInvoker, settlementIndex);
 	}
 
-	void checkForAndReThrowGroupExceptions() const
+	std::exception_ptr captureAggregatedGroupExceptions() const
 	{
 		std::ostringstream ostream;
-		bool doThrow = false;
+		bool hasFailures = false;
 
 		for (auto &item : s.rsrc.settlements)
 		{
@@ -577,7 +577,7 @@ struct Group
 
 			assert(item.calleeException);
 
-			doThrow = true;
+			hasFailures = true;
 			ostream << "Exc thrown in Group Adapter: ";
 			try {
 				std::rethrow_exception(item.calleeException);
@@ -589,8 +589,19 @@ struct Group
 			ostream << "\n";
 		}
 
-		if (doThrow) {
-			throw std::runtime_error(ostream.str());
+		if (!hasFailures) {
+			return nullptr;
+		}
+
+		return std::make_exception_ptr(std::runtime_error(ostream.str()));
+	}
+
+	void checkForAndReThrowGroupExceptions() const
+	{
+		std::exception_ptr aggregatedException =
+			captureAggregatedGroupExceptions();
+		if (aggregatedException) {
+			std::rethrow_exception(aggregatedException);
 		}
 	}
 
