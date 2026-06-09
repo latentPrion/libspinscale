@@ -188,23 +188,19 @@ entry from ordinary code (HTTP handlers, timers, shutdown sequences), not for
 sscl::co::NonViralTaskNursery nursery;
 nursery.openAdmission();
 
-auto lease = nursery.getNewSlotLease();
-lease.getSyncCanceler().startAcceptingWork();
-lease.setOnSettledHook(
-	[](std::exception_ptr &exceptionPtr)
-	{
-		sscl::co::NonViralCompletion nvc(exceptionPtr);
-		nvc.checkAndRethrowException();
-	});
-lease.fillSlot(
-	[&lease]()
+nursery.launch(
+	[](sscl::co::NonViralTaskNursery::Slot::Lease &lease)
 	{
 		return component.someNonViralCReq(
 			lease.getExceptionStorage(),
 			lease.getCallerLambda(),
 			lease.getSyncCanceler());
+	},
+	[](std::exception_ptr &exceptionPtr)
+	{
+		sscl::co::NonViralCompletion nvc(exceptionPtr);
+		nvc.checkAndRethrowException();
 	});
-lease.commit();
 
 nursery.requestCancelOnAll();
 nursery.closeAdmission();
@@ -217,12 +213,14 @@ completion callbacks run. Call `closeAdmission()` explicitly before
 `asyncAwaitAllSettlements()` or `syncAwaitAllSettlements()`; those APIs wait until
 all slots have retired naturally and throw if admission is still open.
 
-`Slot::Lease` is commit-required: an uncommitted lease removes its reservation on
-destruction. `fillSlot()` takes an invoker factory (deferred construction) because
-non-viral coroutines may complete synchronously during invoker construction.
-The factory may capture `lease` by reference; `setOnSettledHook()` may not
-capture `lease` itself. The nursery passes the slot's `exceptionPtr` into the
-hook at retirement.
+`launch(factory, onSettledHook)` registers a non-null hook before `fillSlot()`.
+Omit the hook (default `nullptr`) when no settlement callback is needed.
+`Slot::Lease` is commit-required: an uncommitted lease removes its
+reservation on destruction. `fillSlot()` takes an invoker factory (deferred
+construction) because non-viral coroutines may complete synchronously during
+invoker construction. The factory may capture `lease` by reference;
+`setOnSettledHook()` and the hook passed to `launch()` may not capture `lease`
+itself. The nursery passes the slot's `exceptionPtr` into the hook at retirement.
 `Slot::Handle` is an opaque slot pointer valid only while the slot remains in the
 nursery.
 

@@ -343,10 +343,16 @@ public:
 	}
 
 	template <class InvokerFactory>
-	Slot::Handle launch(InvokerFactory &&factory)
+	Slot::Handle launch(
+		InvokerFactory &&factory,
+		std::function<void(std::exception_ptr &exceptionPtr)> onSettledHook =
+			nullptr)
 	{
 		auto lease = getNewSlotLease();
 		lease.getSyncCanceler().startAcceptingWork();
+		if (onSettledHook) {
+			lease.setOnSettledHook(std::move(onSettledHook));
+		}
 		lease.fillSlot(
 			[&factory, &lease]()
 			{
