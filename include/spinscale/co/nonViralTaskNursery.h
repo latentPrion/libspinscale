@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <exception>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <memory>
 #include <stdexcept>
@@ -116,7 +115,8 @@ public:
 			sscl::SyncCancelerForAsyncWork &getSyncCanceler()
 				{ return slot.syncCanceler; }
 
-			void setOnSettledHook(std::function<void()> hook)
+			void setOnSettledHook(
+				std::function<void(std::exception_ptr &exceptionPtr)> hook)
 			{
 				if (slot.leaseStatus != SlotLeaseStatus::RESERVED)
 				{
@@ -214,7 +214,7 @@ public:
 		std::exception_ptr exceptionPtr = nullptr;
 		sscl::SyncCancelerForAsyncWork syncCanceler;
 		std::unique_ptr<detail::MemberInvokerBase> memberInvoker;
-		std::function<void()> onSettledHook;
+		std::function<void(std::exception_ptr &exceptionPtr)> onSettledHook;
 	};
 
 	void openAdmission()
@@ -411,6 +411,8 @@ private:
 	void retireSlot(Slot &slot)
 	{
 		std::function<void()> waiterToInvoke;
+		std::function<void(std::exception_ptr &exceptionPtr)> onSettledHook;
+		std::exception_ptr settledExceptionPtr;
 
 		{
 			sscl::SpinLock::Guard guard(s.lock);
@@ -430,31 +432,21 @@ private:
 				return;
 			}
 
-			try {
-				if (slot.onSettledHook) { slot.onSettledHook(); }
-			}
-			catch (const std::exception &e)
-			{
-				std::cerr
-					<< "NonViralTaskNursery: onSettled hook exception: "
-					<< e.what() << std::endl;
-			}
-			catch (...)
-			{
-				std::cerr
-					<< "NonViralTaskNursery: onSettled hook unknown exception"
-					<< std::endl;
-			}
-
-			if (slot.exceptionPtr) {
+			settledExceptionPtr = slot.exceptionPtr;
+			if (settledExceptionPtr) {
 				slot.settlementStatus = SlotSettlementStatus::EXCEPTION_THROWN;
 			} else {
 				slot.settlementStatus = SlotSettlementStatus::COMPLETED;
 			}
 
+			onSettledHook = std::move(slot.onSettledHook);
 			slot.leaseStatus = SlotLeaseStatus::RETIRED;
 			slot.memberInvoker.reset();
 			waiterToInvoke = takeDrainWaiterIfDrainedUnlocked();
+		}
+
+		if (onSettledHook) {
+			onSettledHook(settledExceptionPtr);
 		}
 
 		if (waiterToInvoke) { waiterToInvoke(); }
