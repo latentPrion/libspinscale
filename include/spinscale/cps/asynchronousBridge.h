@@ -25,6 +25,10 @@ public:
 		boost::asio::post(io_context, []{});
 	}
 
+	/** Blocks the calling thread in run_one() on the bridge's io_context.
+	 * Used by syncAwaitAllSettlements(); that io_context must be the caller
+	 * thread's own queue so posted completions on the caller are not starved.
+	 */
 	void waitForAsyncOperationCompleteOrIoContextStopped(void)
 	{
 		for (;;)

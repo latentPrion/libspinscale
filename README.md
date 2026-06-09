@@ -204,7 +204,8 @@ nursery.launch(
 
 nursery.requestCancelOnAll();
 nursery.closeAdmission();
-nursery.syncAwaitAllSettlements(ioContext);
+nursery.syncAwaitAllSettlements(
+	sscl::ComponentThread::getSelf()->getIoContext());
 ```
 
 Each slot owns a `SyncCancelerForAsyncWork`. `requestCancelOnAll()` only signals
@@ -212,6 +213,14 @@ cooperative stop; it does not destroy invokers. Invokers are retired when their
 completion callbacks run. Call `closeAdmission()` explicitly before
 `asyncAwaitAllSettlements()` or `syncAwaitAllSettlements()`; those APIs wait until
 all slots have retired naturally and throw if admission is still open.
+
+`syncAwaitAllSettlements()` runs a nested `io_context` loop on the **calling
+thread** (it blocks in `run_one()` until every slot has retired). Pass the
+caller thread's `io_context` — usually `ComponentThread::getSelf()->getIoContext()`
+— not some other thread's context. While the caller is blocked pumping another
+thread's queue, handlers posted to the caller's own `io_context` are abandoned
+and the drain can deadlock even when in-flight work has already completed on a
+different thread.
 
 `launch(factory, onSettledHook)` registers a non-null hook before `fillSlot()`.
 Omit the hook (default `nullptr`) when no settlement callback is needed.

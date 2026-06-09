@@ -45,9 +45,15 @@ struct MemberInvoker : MemberInvokerBase
  *	SyncCancelerForAsyncWork, and provides drain APIs.
  *
  *	Call closeAdmission() explicitly before asyncAwaitAllSettlements() or
- *	syncAwaitAllSettlements(). syncAwaitAllSettlements() caller must pass the
- *	io_context where non-viral posting completions will land, and must ensure
- *	that io_context is prepared to run (e.g. not left stopped without restart).
+ *	syncAwaitAllSettlements().
+ *
+ *	syncAwaitAllSettlements() runs a nested io_context loop on the calling
+ *	thread (AsynchronousBridge). Pass the calling thread's io_context —
+ *	typically
+ *	ComponentThread::getSelf()->getIoContext() — not another thread's
+ *	io_context. If the caller pumps a different thread's queue while blocked,
+ *	completions posted back to the caller's own io_context are never executed
+ *	and the drain can deadlock even after cooperative cancel.
  */
 class NonViralTaskNursery
 {
@@ -307,6 +313,9 @@ public:
 		}
 	}
 
+	/** Nested drain: blocks the calling thread in run_one() on @p ioContext until
+	 * all slots retire. @p ioContext must be the caller thread's io_context.
+	 */
 	void syncAwaitAllSettlements(boost::asio::io_context &ioContext)
 	{
 		if (admissionIsOpen())
