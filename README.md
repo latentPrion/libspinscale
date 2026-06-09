@@ -190,6 +190,13 @@ nursery.openAdmission();
 
 auto lease = nursery.getNewSlotLease();
 lease.getSyncCanceler().startAcceptingWork();
+std::exception_ptr &exceptionStorage = lease.getExceptionStorage();
+lease.setOnSettledHook(
+	[&exceptionStorage]()
+	{
+		sscl::co::NonViralCompletion nvc(exceptionStorage);
+		nvc.checkAndRethrowException();
+	});
 lease.fillSlot(
 	[&lease]()
 	{
@@ -214,6 +221,10 @@ all slots have retired naturally and throw if admission is still open.
 `Slot::Lease` is commit-required: an uncommitted lease removes its reservation on
 destruction. `fillSlot()` takes an invoker factory (deferred construction) because
 non-viral coroutines may complete synchronously during invoker construction.
+The factory may capture `lease` by reference; `setOnSettledHook()` may not.
+The hook runs after the lease is destroyed, so capture slot-owned state such as
+`lease.getExceptionStorage()` (a reference to the slot's `exceptionPtr`), not
+`lease` itself.
 `Slot::Handle` is an opaque slot pointer valid only while the slot remains in the
 nursery.
 

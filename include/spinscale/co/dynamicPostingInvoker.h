@@ -31,6 +31,9 @@ template<typename T>
 using DynamicViralPostingInvoker =
 	ViralPostingInvoker<DynamicPostingPromise, T>;
 
+using DynamicNonViralPostingInvoker =
+	NonViralPostingInvoker<DynamicPostingPromise>;
+
 } // namespace sscl::co
 
 #endif // DYNAMIC_POSTING_INVOKER_H
