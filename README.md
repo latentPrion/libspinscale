@@ -177,6 +177,49 @@ group.checkForAndReThrowGroupExceptions();
 Settlements record whether a member completed or threw. The original invoker can
 be recovered from a descriptor when a caller needs typed return values.
 
+### Non-Viral Task Nursery
+
+`co::NonViralTaskNursery` is the structured-concurrency owner for non-viral
+invokers at non-coroutine boundaries. Unlike `co::Group`, it is for callback-style
+entry from ordinary code (HTTP handlers, timers, shutdown sequences), not for
+`co_await` orchestration inside coroutines.
+
+```cpp
+sscl::co::NonViralTaskNursery nursery;
+nursery.openAdmission();
+
+auto lease = nursery.getNewSlotLease();
+lease.getSyncCanceler().startAcceptingWork();
+lease.fillSlot(
+	[&lease]()
+	{
+		return component.someNonViralCReq(
+			lease.getExceptionStorage(),
+			lease.getCallerLambda(),
+			lease.getSyncCanceler());
+	});
+lease.commit();
+
+nursery.requestCancelOnAll();
+nursery.closeAdmission();
+nursery.syncAwaitAllSettlements(ioContext);
+```
+
+Each slot owns a `SyncCancelerForAsyncWork`. `requestCancelOnAll()` only signals
+cooperative stop; it does not destroy invokers. Invokers are retired when their
+completion callbacks run. Call `closeAdmission()` explicitly before
+`asyncAwaitAllSettlements()` or `syncAwaitAllSettlements()`; those APIs wait until
+all slots have retired naturally and throw if admission is still open.
+
+`Slot::Lease` is commit-required: an uncommitted lease removes its reservation on
+destruction. `fillSlot()` takes an invoker factory (deferred construction) because
+non-viral coroutines may complete synchronously during invoker construction.
+`Slot::Handle` is an opaque slot pointer valid only while the slot remains in the
+nursery.
+
+Slot metadata (`exceptionPtr`, lease/settlement status, canceler) lives on `Slot`.
+`MemberInvokerBase` is invoker type-erasure only.
+
 ### Coroutine-Aware Locking
 
 `co::CoQutex` is a coroutine-aware mutual exclusion primitive. It tracks
@@ -228,6 +271,7 @@ component orchestration:
 - Runtime-selected posting uses `DynamicViralPostingInvoker<T>`.
 - Component lifecycle batches are viral non-posting coroutines.
 - `co::Group` is the primary structured fan-out/fan-in primitive.
+- `co::NonViralTaskNursery` owns non-viral invoker lifetimes at outer boundaries.
 
 Expect breaking changes when they simplify the ownership, lifecycle, or
 post-to/post-back model.
