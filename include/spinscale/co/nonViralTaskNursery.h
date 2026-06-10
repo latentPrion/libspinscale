@@ -1,6 +1,8 @@
 #ifndef NON_VIRAL_TASK_NURSERY_H
 #define NON_VIRAL_TASK_NURSERY_H
 
+#include <boostAsioLinkageFix.h>
+
 #include <cstddef>
 #include <exception>
 #include <functional>
@@ -43,6 +45,15 @@ struct MemberInvoker : MemberInvokerBase
  *	The nursery owns invoker lifetimes until natural completion, wraps completion
  *	callbacks, tracks unsettled slots, fans out cooperative cancel via per-slot
  *	SyncCancelerForAsyncWork, and provides drain APIs.
+ *
+ *	Each nursery member must be one complete, self-contained non-viral async
+ *	flow. For an external HTTP request, that means one coroutine should shepherd
+ *	the whole request from framework callback through all sscl component awaits
+ *	to final response/commit/error handling. Do not use the nursery as a place
+ *	to reserve a slot, perform partial setup elsewhere, and later return to
+ *	fill the slot. Do not add each individual awaited operation as a separate
+ *	nursery member. The external submitter should add the complete flow to the
+ *	nursery and then return; the nursery owns that flow until the flow settles.
  *
  *	Call closeAdmission() explicitly before asyncAwaitAllSettlements() or
  *	syncAwaitAllSettlements().
