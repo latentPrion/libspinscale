@@ -80,6 +80,7 @@ add_library(spinscale SHARED
 	src/qutex.cpp
 	src/componentThread.cpp
 	src/component.cpp
+	src/envKvStore.cpp
 	src/puppeteerComponent.cpp
 	src/puppetApplication.cpp
 	src/runtime.cpp
@@ -146,6 +147,18 @@ install(DIRECTORY include/spinscale
 	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 	FILES_MATCHING PATTERN "*.h"
 )
+
+if(BUILD_TESTING AND TARGET GTest::gtest_main)
+	add_executable(spinscale_env_kv_store_tests
+		tests/env_kv_store_test.cpp
+	)
+	target_link_libraries(spinscale_env_kv_store_tests PRIVATE
+		spinscale
+		GTest::gtest_main
+	)
+	include(GoogleTest)
+	gtest_discover_tests(spinscale_env_kv_store_tests)
+endif()
 
 install(FILES include/boostAsioLinkageFix.h
 	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
