@@ -74,6 +74,29 @@ auto asAwaiter(T &t) noexcept(noexcept(get_operator_co_await(t)))
 	return get_operator_co_await(t);
 }
 
+inline bool endsWithLineBreak(const std::string &message)
+{
+	return !message.empty()
+		&& (message.back() == '\n' || message.back() == '\r');
+}
+
+inline void appendGroupAdapterExceptionLine(
+	std::ostringstream &ostream, std::exception_ptr exceptionPtr)
+{
+	ostream << "Exc thrown in Group Adapter: ";
+	try {
+		std::rethrow_exception(exceptionPtr);
+	} catch (const std::exception &e) {
+		const std::string message = e.what();
+		ostream << message;
+		if (!endsWithLineBreak(message)) {
+			ostream << "\n";
+		}
+	} catch (...) {
+		ostream << "<unknown exception type>\n";
+	}
+}
+
 } // namespace detail
 
 template <typename T>
@@ -225,15 +248,8 @@ struct Group
 				}
 
 				doThrow = true;
-				ostream << "Exc thrown in Group Adapter: ";
-				try {
-					std::rethrow_exception(item.adapterException);
-				} catch (const std::exception &e) {
-					ostream << e.what();
-				} catch (...) {
-					ostream << "<unknown exception type>";
-				}
-				ostream << "\n";
+				detail::appendGroupAdapterExceptionLine(
+					ostream, item.adapterException);
 			}
 
 			if (doThrow) {
@@ -578,15 +594,8 @@ struct Group
 			assert(item.calleeException);
 
 			hasFailures = true;
-			ostream << "Exc thrown in Group Adapter: ";
-			try {
-				std::rethrow_exception(item.calleeException);
-			} catch (const std::exception &e) {
-				ostream << e.what();
-			} catch (...) {
-				ostream << "<unknown exception type>";
-			}
-			ostream << "\n";
+			detail::appendGroupAdapterExceptionLine(
+				ostream, item.calleeException);
 		}
 
 		if (!hasFailures) {
