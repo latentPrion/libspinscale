@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(libspinscale VERSION 0.1.0 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -148,16 +150,29 @@ install(DIRECTORY include/spinscale
 	FILES_MATCHING PATTERN "*.h"
 )
 
-if(BUILD_TESTING AND TARGET GTest::gtest_main)
-	add_executable(spinscale_env_kv_store_tests
-		tests/env_kv_store_test.cpp
-	)
-	target_link_libraries(spinscale_env_kv_store_tests PRIVATE
-		spinscale
-		GTest::gtest_main
-	)
-	include(GoogleTest)
-	gtest_discover_tests(spinscale_env_kv_store_tests)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	set(_libspinscaleTestsDefault ON)
+else()
+	set(_libspinscaleTestsDefault OFF)
+	if(DEFINED ENABLE_TESTS AND ENABLE_TESTS)
+		set(_libspinscaleTestsDefault ON)
+	endif()
+endif()
+
+option(LIBSPINSCALE_BUILD_TESTS "Build libspinscale unit tests"
+	${_libspinscaleTestsDefault})
+
+if(LIBSPINSCALE_BUILD_TESTS)
+	if(NOT TARGET gtest AND NOT TARGET gtest_main)
+		set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+		add_subdirectory(
+			${CMAKE_CURRENT_SOURCE_DIR}/googletest
+			${CMAKE_CURRENT_BINARY_DIR}/googletest
+			EXCLUDE_FROM_ALL)
+	endif()
+
+	enable_testing()
+	add_subdirectory(tests)
 endif()
 
 install(FILES include/boostAsioLinkageFix.h
