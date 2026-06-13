@@ -1,9 +1,11 @@
 add_library(spinscale_test_support STATIC
 	support/threadHarness.cpp
+	support/probeComponentThread.cpp
 )
 
 target_include_directories(spinscale_test_support PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}
+	${CMAKE_SOURCE_DIR}/tests/fixtures
 )
 
 target_link_libraries(spinscale_test_support PUBLIC
