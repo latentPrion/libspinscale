@@ -15,6 +15,11 @@ public:
 	: lock(lockName)
 	{}
 
+	SharedResourceGroup(
+		const std::string& lockName, const ResourceType& initialRsrc)
+	: lock(lockName), rsrc(initialRsrc)
+	{}
+
 	~SharedResourceGroup() = default;
 
 	LockType lock;
