@@ -330,8 +330,6 @@ TEST_F(QutexTest, Release) {
 
 // Test release without a prior acquire is rejected
 TEST_F(QutexTest, ReleaseWithoutAcquireThrows) {
-	qutex.isOwned = true;
-
 	EXPECT_THROW(qutex.release(), std::runtime_error);
 	EXPECT_TRUE(qutex.queue.empty());
 }
