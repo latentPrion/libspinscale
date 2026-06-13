@@ -180,7 +180,9 @@ public:
 	static void registerThread(
 		PostingThreadRole role,
 		DedicatedIoThread &thread);
-	static void unregisterThread(PostingThreadRole role);
+	static void unregisterThread(
+		PostingThreadRole role,
+		DedicatedIoThread &expectedThread);
 	static boost::asio::io_context &ioContext(PostingThreadRole role);
 	static std::thread::id osThreadId(PostingThreadRole role);
 
@@ -240,13 +242,27 @@ public:
 	DedicatedIoThread &leg();
 
 private:
+	void registerAllThreads();
+	void unregisterAllThreads();
+	void installCallerAsPuppeteer();
+	void restorePreviousPuppeteer();
+
 	DedicatedIoThread callerThread;
 	DedicatedIoThread calleeThread;
 	DedicatedIoThread alternateThread;
 	DedicatedIoThread bodyThread;
 	DedicatedIoThread worldThread;
 	DedicatedIoThread legThread;
+	std::shared_ptr<sscl::PuppeteerThread> previousPuppeteerThread;
+	sscl::ThreadId previousPuppeteerThreadId = 0;
 };
+
+template <typename Function>
+auto RunOnThread(DedicatedIoThread &thread, Function &&function)
+	-> std::invoke_result_t<Function &>
+{
+	return thread.runSync(std::forward<Function>(function));
+}
 
 class CrossThreadTrace
 {

@@ -88,75 +88,17 @@ CalleeVoidInvoker voidMemberAfterDelay(int delayMilliseconds)
 	co_return;
 }
 
-int readCompletedLabel(CalleeIntInvoker &invoker)
+CalleeIntInvoker waitRecordThreadAndReturnLabel(
+	int timerLabelMilliseconds,
+	sscl::tests::CrossThreadTrace &trace)
 {
-	return invoker.completedReturnValues().myReturnValue;
-}
-
-void assertCompleted(
-	const sscl::co::Group::SettlementDescriptor &descriptor,
-	int expectedLabel)
-{
-	if (descriptor.type
-		!= sscl::co::Group::SettlementDescriptor::TypeE::COMPLETED) {
-		throw std::runtime_error("expected completed settlement");
-	}
-
-	if (readCompletedLabel(descriptor.invokerAs<CalleeIntInvoker>())
-		!= expectedLabel) {
-		throw std::runtime_error("settlement label mismatch");
-	}
-}
-
-void assertRuntimeErrorSettlement(
-	const sscl::co::Group::SettlementDescriptor &descriptor)
-{
-	if (descriptor.type
-		!= sscl::co::Group::SettlementDescriptor::TypeE::EXCEPTION_THROWN) {
-		throw std::runtime_error("expected exception settlement");
-	}
-
-	try {
-		std::rethrow_exception(descriptor.calleeException);
-	}
-	catch (const std::runtime_error &runtimeError) {
-		if (std::string(runtimeError.what()) != expectedThrowMessage) {
-			throw std::runtime_error("unexpected exception message");
-		}
-		return;
-	}
-
-	throw std::runtime_error("expected runtime_error settlement");
-}
-
-void assertIntExceptionSettlement(
-	const sscl::co::Group::SettlementDescriptor &descriptor)
-{
-	if (descriptor.type
-		!= sscl::co::Group::SettlementDescriptor::TypeE::EXCEPTION_THROWN) {
-		throw std::runtime_error("expected int exception settlement");
-	}
-
-	try {
-		std::rethrow_exception(descriptor.calleeException);
-	}
-	catch (int caughtValue) {
-		if (caughtValue != expectedNonStdThrowValue) {
-			throw std::runtime_error("unexpected int exception value");
-		}
-		return;
-	}
-
-	throw std::runtime_error("expected int exception settlement");
-}
-
-void assertEmptyGroupCoAwaitError(const std::runtime_error &runtimeError)
-{
-	constexpr const char *expectedEmptyGroupCoAwaitMessage =
-		"co_await: Group has no member invokers; call add() before awaiting";
-	if (std::string(runtimeError.what()) != expectedEmptyGroupCoAwaitMessage) {
-		throw std::runtime_error("unexpected empty-group error message");
-	}
+	const boost::system::error_code waitError =
+		co_await sscl::tests::DeadlineTimerAwaiter{
+			sscl::ComponentThread::getSelf()->getIoContext(),
+			timerLabelMilliseconds};
+	sscl::tests::throwIfTimerWaitFailed(waitError);
+	trace.recordCalleeExecutionThread();
+	co_return timerLabelMilliseconds;
 }
 
 sscl::co::ViralNonPostingInvoker<void> waitOnCallerThread(int delayMilliseconds)
@@ -188,11 +130,15 @@ CallerDriver mixedSuccessAndFailureAwaitFirstThenAll(
 
 	if (firstDescriptor.type
 		== sscl::co::Group::SettlementDescriptor::TypeE::COMPLETED) {
-		assertCompleted(firstDescriptor, 1);
+		sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+			firstDescriptor,
+			1);
 	}
 	else if (firstDescriptor.type
 		== sscl::co::Group::SettlementDescriptor::TypeE::EXCEPTION_THROWN) {
-		assertRuntimeErrorSettlement(firstDescriptor);
+		sscl::tests::requireRuntimeErrorSettlement(
+			firstDescriptor,
+			expectedThrowMessage);
 	}
 	else {
 		throw std::runtime_error("first settlement has unexpected type");
@@ -212,12 +158,16 @@ CallerDriver mixedSuccessAndFailureAwaitFirstThenAll(
 		if (descriptor.type
 			== sscl::co::Group::SettlementDescriptor::TypeE::COMPLETED) {
 			++completedCount;
-			assertCompleted(descriptor, 1);
+			sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+				descriptor,
+				1);
 		}
 		else if (descriptor.type
 			== sscl::co::Group::SettlementDescriptor::TypeE::EXCEPTION_THROWN) {
 			++exceptionCount;
-			assertRuntimeErrorSettlement(descriptor);
+			sscl::tests::requireRuntimeErrorSettlement(
+				descriptor,
+				expectedThrowMessage);
 		}
 	}
 
@@ -241,7 +191,9 @@ CallerDriver singleMemberAwaitFirstThenAll(
 
 	auto awaitFirst = group.getAwaitFirstSettlementInvoker();
 	auto [firstDescriptor, allAfterFirst] = co_await awaitFirst;
-	assertCompleted(firstDescriptor, delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptor,
+		delayShortMs);
 
 	if (!group.allInvokersSettled() || allAfterFirst.size() != 1) {
 		throw std::runtime_error("single member state mismatch");
@@ -254,7 +206,9 @@ CallerDriver singleMemberAwaitFirstThenAll(
 		throw std::runtime_error("single member await-all count mismatch");
 	}
 
-	assertCompleted(allDescriptors[0], delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		allDescriptors[0],
+		delayShortMs);
 	co_return;
 }
 
@@ -282,7 +236,9 @@ CallerDriver allCompleteBeforeCoAwait(
 
 	auto awaitFirst = group.getAwaitFirstSettlementInvoker();
 	auto [firstDescriptor, allAfterFirst] = co_await awaitFirst;
-	assertCompleted(firstDescriptor, 10);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptor,
+		10);
 
 	auto awaitAll = group.getAwaitAllSettlementsInvoker();
 	auto &allDescriptors = co_await awaitAll;
@@ -294,13 +250,13 @@ CallerDriver allCompleteBeforeCoAwait(
 	co_return;
 }
 
-std::thread startAddWhileGroupAwaiterSuspendedProbe(
+std::jthread startAddWhileGroupAwaiterSuspendedProbe(
 	sscl::co::Group &group,
 	CalleeIntInvoker &lateInvoker,
 	std::atomic<bool> &groupIsAwaitingAll,
 	std::atomic<bool> &addWasRejected)
 {
-	return std::thread(
+	return std::jthread(
 		[&]()
 		{
 			while (!groupIsAwaitingAll.load(std::memory_order_acquire)) {
@@ -343,7 +299,7 @@ CallerDriver addWhileAwaitAllSuspended(
 	group.add(slowInvokerA);
 	group.add(slowInvokerB);
 
-	std::thread addProbeThread = startAddWhileGroupAwaiterSuspendedProbe(
+	std::jthread addProbeThread = startAddWhileGroupAwaiterSuspendedProbe(
 		group,
 		lateInvoker,
 		groupIsAwaitingAll,
@@ -390,12 +346,16 @@ CallerDriver awaitAllOnlyMixedOutcomes(
 		if (descriptor.type
 			== sscl::co::Group::SettlementDescriptor::TypeE::COMPLETED) {
 			++completedCount;
-			assertCompleted(descriptor, 7);
+			sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+				descriptor,
+				7);
 		}
 		else if (descriptor.type
 			== sscl::co::Group::SettlementDescriptor::TypeE::EXCEPTION_THROWN) {
 			++exceptionCount;
-			assertRuntimeErrorSettlement(descriptor);
+			sscl::tests::requireRuntimeErrorSettlement(
+				descriptor,
+				expectedThrowMessage);
 		}
 	}
 
@@ -446,7 +406,7 @@ CallerDriver emptyGroupAwaitAllThrows(
 		(void)co_await group.getAwaitAllSettlementsInvoker();
 	}
 	catch (const std::runtime_error &runtimeError) {
-		assertEmptyGroupCoAwaitError(runtimeError);
+		sscl::tests::requireEmptyGroupError(runtimeError);
 		co_return;
 	}
 
@@ -466,7 +426,7 @@ CallerDriver emptyGroupAwaitFirstThrows(
 		(void)co_await group.getAwaitFirstSettlementInvoker();
 	}
 	catch (const std::runtime_error &runtimeError) {
-		assertEmptyGroupCoAwaitError(runtimeError);
+		sscl::tests::requireEmptyGroupError(runtimeError);
 		co_return;
 	}
 
@@ -496,9 +456,10 @@ CallerDriver wrongAwaitInvokerOrder(
 	}
 
 	auto [firstDescriptor, allAfterFirst] = co_await awaitFirstHandle;
-	assertCompleted(
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
 		firstDescriptor,
-		readCompletedLabel(firstDescriptor.invokerAs<CalleeIntInvoker>()));
+		sscl::tests::completedIntValue(
+			firstDescriptor.invokerAs<CalleeIntInvoker>()));
 
 	if (!group.firstInvokerSettled() || allAfterFirst.size() != 2) {
 		throw std::runtime_error("wrong-order await-first state mismatch");
@@ -524,8 +485,12 @@ CallerDriver doubleCoAwaitSameAwaitFirst(
 	auto [firstDescriptorA, allAfterFirstA] = co_await awaitFirst;
 	auto [firstDescriptorB, allAfterFirstB] = co_await awaitFirst;
 
-	assertCompleted(firstDescriptorA, delayShortMs);
-	assertCompleted(firstDescriptorB, delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptorA,
+		delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptorB,
+		delayShortMs);
 
 	if (&firstDescriptorA.invokerAs<CalleeIntInvoker>()
 		!= &firstDescriptorB.invokerAs<CalleeIntInvoker>()) {
@@ -558,8 +523,12 @@ CallerDriver doubleCoAwaitSameAwaitAll(
 		throw std::runtime_error("double await-all count mismatch");
 	}
 
-	assertCompleted(allDescriptorsA[0], delayShortMs);
-	assertCompleted(allDescriptorsB[0], delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		allDescriptorsA[0],
+		delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		allDescriptorsB[0],
+		delayShortMs);
 	co_return;
 }
 
@@ -579,11 +548,15 @@ CallerDriver twoAwaitFirstHandlesSequentially(
 
 	auto awaitFirstA = group.getAwaitFirstSettlementInvoker();
 	auto [firstDescriptorA, allAfterFirstA] = co_await awaitFirstA;
-	assertCompleted(firstDescriptorA, delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptorA,
+		delayShortMs);
 
 	auto awaitFirstB = group.getAwaitFirstSettlementInvoker();
 	auto [firstDescriptorB, allAfterFirstB] = co_await awaitFirstB;
-	assertCompleted(firstDescriptorB, delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptorB,
+		delayShortMs);
 
 	if (&firstDescriptorA.invokerAs<CalleeIntInvoker>()
 		!= &firstDescriptorB.invokerAs<CalleeIntInvoker>()) {
@@ -620,7 +593,7 @@ CallerDriver addSecondWaveAfterAwaitAll(
 
 	co_await waitOnCallerThread(delayShortMs);
 
-	if (readCompletedLabel(wave2Immediate)
+	if (sscl::tests::completedIntValue(wave2Immediate)
 		!= wave2ImmediateSettlementLabel) {
 		throw std::runtime_error("wave-2 immediate member did not complete");
 	}
@@ -656,7 +629,9 @@ CallerDriver shortTimerAddedAfterLongStillWinsRace(
 	auto awaitFirst = group.getAwaitFirstSettlementInvoker();
 	auto [firstDescriptor, allAfterFirst] = co_await awaitFirst;
 
-	assertCompleted(firstDescriptor, delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptor,
+		delayShortMs);
 
 	if (&firstDescriptor.invokerAs<CalleeIntInvoker>() != &shortInvoker) {
 		throw std::runtime_error("short timer should win first settlement");
@@ -684,7 +659,9 @@ CallerDriver nonStdExceptionSettlement(
 		throw std::runtime_error("non-std exception count mismatch");
 	}
 
-	assertIntExceptionSettlement(allDescriptors[0]);
+	sscl::tests::requireIntExceptionSettlement(
+		allDescriptors[0],
+		expectedNonStdThrowValue);
 
 	try {
 		group.checkForAndReThrowGroupExceptions();
@@ -738,11 +715,14 @@ CallerDriver returnValuesRemainReadableAfterAwaitFirst(
 	auto awaitFirst = group.getAwaitFirstSettlementInvoker();
 	auto [firstDescriptor, allAfterFirst] = co_await awaitFirst;
 
-	assertCompleted(firstDescriptor, delayShortMs);
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptor,
+		delayShortMs);
 
-	const int fastLabelFromDescriptor = readCompletedLabel(
+	const int fastLabelFromDescriptor = sscl::tests::completedIntValue(
 		firstDescriptor.invokerAs<CalleeIntInvoker>());
-	const int fastLabelFromLocal = readCompletedLabel(fastInvoker);
+	const int fastLabelFromLocal =
+		sscl::tests::completedIntValue(fastInvoker);
 
 	if (fastLabelFromDescriptor != fastLabelFromLocal) {
 		throw std::runtime_error("descriptor/local return value mismatch");
@@ -753,6 +733,35 @@ CallerDriver returnValuesRemainReadableAfterAwaitFirst(
 	}
 
 	(void)co_await group.getAwaitAllSettlementsInvoker();
+	co_return;
+}
+
+CallerDriver groupMemberRunsOnCalleeAndAwaitResumesOnCaller(
+	std::exception_ptr &exceptionPtr,
+	std::function<void()> completion,
+	sscl::tests::CrossThreadTrace &trace)
+{
+	(void)exceptionPtr;
+	(void)completion;
+
+	sscl::co::Group group;
+	CalleeIntInvoker memberInvoker = waitRecordThreadAndReturnLabel(
+		delayShortMs,
+		trace);
+	group.add(memberInvoker);
+
+	auto awaitFirst = group.getAwaitFirstSettlementInvoker();
+	auto [firstDescriptor, allAfterFirst] = co_await awaitFirst;
+	trace.recordAwaitResumeThread();
+
+	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
+		firstDescriptor,
+		delayShortMs);
+
+	if (allAfterFirst.size() != 1) {
+		throw std::runtime_error("cross-thread group trace count mismatch");
+	}
+
 	co_return;
 }
 
@@ -815,6 +824,26 @@ RUN_GROUP_EDGE_SCENARIO(VoidViralMemberInGroup, voidViralMemberInGroup)
 RUN_GROUP_EDGE_SCENARIO(
 	ReturnValuesRemainReadableAfterAwaitFirst,
 	returnValuesRemainReadableAfterAwaitFirst)
+
+TEST_F(GroupEdgeTest, SuspendingMemberRunsOnCalleeAndAwaitResumesOnCaller)
+{
+	sscl::tests::CrossThreadTrace trace;
+
+	runScenario(
+		[&trace](
+			std::exception_ptr &exceptionPtr,
+			std::function<void()> completion)
+		{
+			return groupMemberRunsOnCalleeAndAwaitResumesOnCaller(
+				exceptionPtr,
+				std::move(completion),
+				trace);
+		});
+
+	EXPECT_EQ(trace.calleeExecutionThread(), threads.callee().osThreadId());
+	EXPECT_EQ(trace.awaitResumeThread(), threads.caller().osThreadId());
+	EXPECT_NE(trace.calleeExecutionThread(), trace.awaitResumeThread());
+}
 
 TEST_F(GroupEdgeTest, NonViralVoidGroupTemplateInstantiates)
 {

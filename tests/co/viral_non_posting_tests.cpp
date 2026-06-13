@@ -12,7 +12,11 @@
 #include <boost/system/error_code.hpp>
 
 #include <spinscale/co/invokers.h>
+#include <spinscale/co/group.h>
+#include <spinscale/componentThread.h>
 
+#include <support/coroutineDriver.h>
+#include <support/groupAssertions.h>
 #include <support/threadHarness.h>
 #include <support/timerAwaiters.h>
 
@@ -28,6 +32,9 @@ using TestInvoker = sscl::co::ViralNonPostingInvoker<T>;
 
 using TestDriver = TestInvoker<int>;
 using TestVoidDriver = TestInvoker<void>;
+using CallerPostingDriver =
+	sscl::tests::RoleNonViralPostingInvoker<
+		sscl::tests::PostingThreadRole::CALLER>;
 
 struct ThreadIdPair
 {
@@ -101,18 +108,14 @@ protected:
 
 	int runDriver(TestDriver &driver)
 	{
-		sscl::tests::IoContextPump::pumpUntilIdle(ioContext);
-		return finishDriver(driver);
+		return sscl::tests::CoroutineDriver::pumpUntilIdleAndReturnValue(
+			ioContext,
+			driver);
 	}
 
 	int finishDriver(TestDriver &driver)
 	{
-		if (driver.completedReturnValues().myExceptionPtr) {
-			std::rethrow_exception(
-				driver.completedReturnValues().myExceptionPtr);
-		}
-
-		return driver.completedReturnValues().myReturnValue;
+		return sscl::tests::CoroutineDriver::completedReturnValue(driver);
 	}
 
 	boost::asio::io_context ioContext;
@@ -137,6 +140,18 @@ TestInvoker<int> waitAndReturnLabel(
 
 TestVoidDriver voidReturnImmediately()
 {
+	co_return;
+}
+
+TestVoidDriver voidMemberAfterDelay(
+	boost::asio::io_context &ioContext,
+	int delayMilliseconds)
+{
+	const boost::system::error_code waitError =
+		co_await sscl::tests::DeadlineTimerAwaiter{
+			ioContext,
+			delayMilliseconds};
+	sscl::tests::throwIfTimerWaitFailed(waitError);
 	co_return;
 }
 
@@ -412,6 +427,79 @@ TestDriver testNestedInnerSuspension(boost::asio::io_context &ioContext)
 	co_return 0;
 }
 
+CallerPostingDriver nonPostingVoidMemberInGroupDriver(
+	std::exception_ptr &exceptionPtr,
+	std::function<void()> completion)
+{
+	(void)exceptionPtr;
+	(void)completion;
+
+	sscl::co::Group group;
+	TestVoidDriver voidInvoker = voidMemberAfterDelay(
+		sscl::ComponentThread::getSelf()->getIoContext(),
+		delayShortMs);
+	group.add(voidInvoker);
+
+	auto &allDescriptors = co_await group.getAwaitAllSettlementsInvoker();
+
+	if (allDescriptors.size() != 1) {
+		throw std::runtime_error("voidMemberInGroup count mismatch");
+	}
+
+	sscl::tests::requireCompletedSettlement(allDescriptors[0]);
+
+	co_return;
+}
+
+CallerPostingDriver nonPostingGroupMixedImmediateAndDelayedDriver(
+	std::exception_ptr &exceptionPtr,
+	std::function<void()> completion)
+{
+	(void)exceptionPtr;
+	(void)completion;
+
+	sscl::co::Group group;
+	TestInvoker<int> immediateInvoker = returnLabelImmediately(11);
+	TestInvoker<int> delayedInvoker = waitAndReturnLabel(
+		sscl::ComponentThread::getSelf()->getIoContext(),
+		delayShortMs);
+
+	group.add(immediateInvoker);
+	group.add(delayedInvoker);
+
+	auto &allDescriptors = co_await group.getAwaitAllSettlementsInvoker();
+
+	if (allDescriptors.size() != 2) {
+		throw std::runtime_error("groupMixedImmediateAndDelayed count mismatch");
+	}
+
+	bool sawImmediate = false;
+	bool sawDelayed = false;
+
+	for (auto &descriptor : allDescriptors) {
+		sscl::tests::requireCompletedSettlement(descriptor);
+		const int label = sscl::tests::completedIntValue(
+			descriptor.invokerAs<TestInvoker<int>>());
+		if (label == 11) {
+			sawImmediate = true;
+		}
+		else if (label == delayShortMs) {
+			sawDelayed = true;
+		}
+		else {
+			throw std::runtime_error(
+				"groupMixedImmediateAndDelayed unexpected label");
+		}
+	}
+
+	if (!sawImmediate || !sawDelayed) {
+		throw std::runtime_error(
+			"groupMixedImmediateAndDelayed missing expected label");
+	}
+
+	co_return;
+}
+
 } // namespace
 
 TEST_F(ViralNonPostingTest, ImmediateReturnFastPath)
@@ -508,4 +596,38 @@ TEST_F(ViralNonPostingTest, NestedInnerSuspension)
 {
 	TestDriver driver = testNestedInnerSuspension(ioContext);
 	EXPECT_NO_THROW({ EXPECT_EQ(runDriver(driver), 0); });
+}
+
+TEST(ViralNonPostingGroupIntegrationTest, VoidMemberInGroup)
+{
+	sscl::tests::PostingThreadSet threads;
+
+	ASSERT_NO_THROW(
+		sscl::tests::runNonViralPostingTask(
+			threads.caller(),
+			[](
+				std::exception_ptr &exceptionPtr,
+				std::function<void()> completion)
+			{
+				return nonPostingVoidMemberInGroupDriver(
+					exceptionPtr,
+					std::move(completion));
+			}));
+}
+
+TEST(ViralNonPostingGroupIntegrationTest, MixedImmediateAndDelayedInGroup)
+{
+	sscl::tests::PostingThreadSet threads;
+
+	ASSERT_NO_THROW(
+		sscl::tests::runNonViralPostingTask(
+			threads.caller(),
+			[](
+				std::exception_ptr &exceptionPtr,
+				std::function<void()> completion)
+			{
+				return nonPostingGroupMixedImmediateAndDelayedDriver(
+					exceptionPtr,
+					std::move(completion));
+			}));
 }

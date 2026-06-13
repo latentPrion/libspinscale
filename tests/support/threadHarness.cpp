@@ -217,13 +217,32 @@ void ThreadRegistry::registerThread(
 	DedicatedIoThread &thread)
 {
 	std::lock_guard<std::mutex> guard(registryMutex());
-	threadsByRole()[role] = &thread;
+	auto [iterator, inserted] = threadsByRole().emplace(role, &thread);
+
+	if (!inserted) {
+		throw std::runtime_error(
+			"Test thread role already registered for " + threadRoleName(role));
+	}
 }
 
-void ThreadRegistry::unregisterThread(PostingThreadRole role)
+void ThreadRegistry::unregisterThread(
+	PostingThreadRole role,
+	DedicatedIoThread &expectedThread)
 {
 	std::lock_guard<std::mutex> guard(registryMutex());
-	threadsByRole().erase(role);
+	auto iterator = threadsByRole().find(role);
+
+	if (iterator == threadsByRole().end()) {
+		return;
+	}
+
+	if (iterator->second != &expectedThread) {
+		throw std::runtime_error(
+			"Test thread role registered to a different thread for "
+			+ threadRoleName(role));
+	}
+
+	threadsByRole().erase(iterator);
 }
 
 boost::asio::io_context &ThreadRegistry::ioContext(PostingThreadRole role)
@@ -273,28 +292,51 @@ PostingThreadSet::PostingThreadSet()
 	worldThread(PostingThreadRole::WORLD),
 	legThread(PostingThreadRole::LEG)
 {
+	previousPuppeteerThread = sscl::ComponentThread::getPptr();
+	previousPuppeteerThreadId = sscl::pptr::puppeteerThreadId;
+	registerAllThreads();
+	installCallerAsPuppeteer();
+}
+
+PostingThreadSet::~PostingThreadSet()
+{
+	restorePreviousPuppeteer();
+	unregisterAllThreads();
+}
+
+void PostingThreadSet::registerAllThreads()
+{
 	ThreadRegistry::registerThread(PostingThreadRole::CALLER, callerThread);
 	ThreadRegistry::registerThread(PostingThreadRole::CALLEE, calleeThread);
 	ThreadRegistry::registerThread(PostingThreadRole::ALTERNATE, alternateThread);
 	ThreadRegistry::registerThread(PostingThreadRole::BODY, bodyThread);
 	ThreadRegistry::registerThread(PostingThreadRole::WORLD, worldThread);
 	ThreadRegistry::registerThread(PostingThreadRole::LEG, legThread);
+}
 
+void PostingThreadSet::unregisterAllThreads()
+{
+	ThreadRegistry::unregisterThread(PostingThreadRole::CALLER, callerThread);
+	ThreadRegistry::unregisterThread(PostingThreadRole::CALLEE, calleeThread);
+	ThreadRegistry::unregisterThread(
+		PostingThreadRole::ALTERNATE,
+		alternateThread);
+	ThreadRegistry::unregisterThread(PostingThreadRole::BODY, bodyThread);
+	ThreadRegistry::unregisterThread(PostingThreadRole::WORLD, worldThread);
+	ThreadRegistry::unregisterThread(PostingThreadRole::LEG, legThread);
+}
+
+void PostingThreadSet::installCallerAsPuppeteer()
+{
 	sscl::ComponentThread::setPuppeteerThreadId(
 		static_cast<sscl::ThreadId>(PostingThreadRole::CALLER));
 	sscl::ComponentThread::setPuppeteerThread(callerThread.componentThread());
 }
 
-PostingThreadSet::~PostingThreadSet()
+void PostingThreadSet::restorePreviousPuppeteer()
 {
-	ThreadRegistry::unregisterThread(PostingThreadRole::CALLER);
-	ThreadRegistry::unregisterThread(PostingThreadRole::CALLEE);
-	ThreadRegistry::unregisterThread(PostingThreadRole::ALTERNATE);
-	ThreadRegistry::unregisterThread(PostingThreadRole::BODY);
-	ThreadRegistry::unregisterThread(PostingThreadRole::WORLD);
-	ThreadRegistry::unregisterThread(PostingThreadRole::LEG);
-
-	sscl::ComponentThread::setPuppeteerThread(nullptr);
+	sscl::ComponentThread::setPuppeteerThreadId(previousPuppeteerThreadId);
+	sscl::ComponentThread::setPuppeteerThread(previousPuppeteerThread);
 }
 
 DedicatedIoThread &PostingThreadSet::thread(PostingThreadRole role)
