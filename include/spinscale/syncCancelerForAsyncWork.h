@@ -27,6 +27,11 @@ namespace sscl {
  * then flips shouldContinue to false. This guarantees shouldContinue is stable
  * throughout each uncancelable segment.
  *
+ * Shutdown call sites that also cancel internal async operations (timers, I/O,
+ * hardware capture, etc.) must call requestStop() on slot cancelers before
+ * cancelling those internal operations, so callees observe stop intent when
+ * the internal op unblocks their co_await.
+ *
  * startAcceptingWork() is intentionally unlocked. Precondition: callers must
  * only call startAcceptingWork() when no async callee is running yet (e.g. at
  * the end of setup(), before posting/arming the first async work). If this
