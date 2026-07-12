@@ -66,13 +66,13 @@ configure_file(
 	@ONLY
 )
 
-# Find dependencies
-# Tell CMake we're linking against the shared library (not header-only)
-set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_HEADER_ONLY OFF)
-find_package(Boost REQUIRED COMPONENTS system log)
-# Define BOOST_ALL_DYN_LINK project-wide to ensure all Boost libraries use dynamic linking
-add_compile_definitions(BOOST_ALL_DYN_LINK)
+# Find dependencies (Boost.System optional on 1.89+; see BoostSharedDeps.cmake)
+if(EXISTS ${CMAKE_SOURCE_DIR}/cmake/BoostSharedDeps.cmake
+	AND NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	include(${CMAKE_SOURCE_DIR}/cmake/BoostSharedDeps.cmake)
+else()
+	include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/BoostSharedDeps.cmake)
+endif()
 
 find_package(Threads REQUIRED)
 
@@ -110,12 +110,12 @@ target_include_directories(spinscale PUBLIC
 	$<INSTALL_INTERFACE:include>
 )
 
-# Link against required dependencies for shared library
-# Boost::system is PUBLIC because componentThread.h exposes Boost.Asio types
+# Link against required dependencies for shared library.
+# BOOST_SHARED_DEP_TARGETS is PUBLIC because componentThread.h exposes Boost.Asio
+# types (and Boost::system when a compiled stub still exists).
 target_link_libraries(spinscale PUBLIC
 	Threads::Threads
-	Boost::system
-	Boost::log
+	${BOOST_SHARED_DEP_TARGETS}
 )
 
 # Verify Boost dynamic dependencies after build
