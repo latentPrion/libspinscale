@@ -1,6 +1,9 @@
 #ifndef SPINSCALE_TEST_SUPPORT_TIMER_AWAITERS_H
 #define SPINSCALE_TEST_SUPPORT_TIMER_AWAITERS_H
 
+#include <boostAsioLinkageFix.h>
+
+#include <chrono>
 #include <coroutine>
 #include <memory>
 #include <mutex>
@@ -9,15 +12,17 @@
 #include <string>
 #include <unordered_map>
 
-#include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/io_context.hpp>
-#include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/system/error_code.hpp>
 
 namespace sscl::tests {
 
-using SharedDeadlineTimer = std::shared_ptr<boost::asio::deadline_timer>;
+using SharedSteadyTimer = std::shared_ptr<boost::asio::steady_timer>;
+
+/* Keep historical names as aliases so existing spinscale tests stay readable. */
+using SharedDeadlineTimer = SharedSteadyTimer;
 
 class CancelableDeadlineTimerRegistry
 {
@@ -30,7 +35,7 @@ public:
 
 	void registerTimer(
 		int labelMilliseconds,
-		const SharedDeadlineTimer &timer)
+		const SharedSteadyTimer &timer)
 	{
 		std::lock_guard<std::mutex> guard(mutex);
 		timersByLabel[labelMilliseconds] = timer;
@@ -43,15 +48,15 @@ public:
 
 		if (iterator == timersByLabel.end()) {
 			throw std::runtime_error(
-				"No cancelable deadline_timer registered for label "
+				"No cancelable steady_timer registered for label "
 				+ std::to_string(labelMilliseconds));
 		}
 
-		const SharedDeadlineTimer timer = iterator->second.lock();
+		const SharedSteadyTimer timer = iterator->second.lock();
 
 		if (!timer) {
 			throw std::runtime_error(
-				"Cancelable deadline_timer expired before cancel for label "
+				"Cancelable steady_timer expired before cancel for label "
 				+ std::to_string(labelMilliseconds));
 		}
 
@@ -60,7 +65,7 @@ public:
 
 private:
 	std::mutex mutex;
-	std::unordered_map<int, std::weak_ptr<boost::asio::deadline_timer>>
+	std::unordered_map<int, std::weak_ptr<boost::asio::steady_timer>>
 		timersByLabel;
 };
 
@@ -69,13 +74,13 @@ struct DeadlineTimerAwaiter
 	DeadlineTimerAwaiter(
 		boost::asio::io_context &ioContext,
 		int delayMilliseconds)
-	: timer(std::make_shared<boost::asio::deadline_timer>(ioContext))
+	: timer(std::make_shared<boost::asio::steady_timer>(ioContext))
 	{
 		start(delayMilliseconds);
 	}
 
 	DeadlineTimerAwaiter(
-		SharedDeadlineTimer sharedTimer,
+		SharedSteadyTimer sharedTimer,
 		int delayMilliseconds)
 	: timer(std::move(sharedTimer))
 	{
@@ -97,8 +102,8 @@ struct DeadlineTimerAwaiter
 private:
 	void start(int delayMilliseconds)
 	{
-		timer->expires_from_now(
-			boost::posix_time::milliseconds(delayMilliseconds));
+		timer->expires_after(
+			std::chrono::milliseconds(delayMilliseconds));
 		timer->async_wait(
 			[this](const boost::system::error_code &errorCode)
 			{
@@ -110,7 +115,7 @@ private:
 			});
 	}
 
-	SharedDeadlineTimer timer;
+	SharedSteadyTimer timer;
 	boost::system::error_code completionErrorCode;
 	bool waitCompleted = false;
 	std::coroutine_handle<> resumeHandle;
@@ -123,7 +128,7 @@ struct RegisteredDeadlineTimerAwaiter
 		int delayMilliseconds,
 		int registrationLabelMilliseconds,
 		CancelableDeadlineTimerRegistry &registry)
-	: timer(std::make_shared<boost::asio::deadline_timer>(ioContext))
+	: timer(std::make_shared<boost::asio::steady_timer>(ioContext))
 	{
 		registry.registerTimer(registrationLabelMilliseconds, timer);
 		waiter.emplace(timer, delayMilliseconds);
@@ -138,7 +143,7 @@ struct RegisteredDeadlineTimerAwaiter
 	boost::system::error_code await_resume() const noexcept
 		{ return waiter->await_resume(); }
 
-	SharedDeadlineTimer timer;
+	SharedSteadyTimer timer;
 	std::optional<DeadlineTimerAwaiter> waiter;
 };
 
@@ -147,7 +152,7 @@ inline void throwIfTimerWaitFailed(
 {
 	if (waitError) {
 		throw std::runtime_error(
-			"deadline_timer wait failed: " + waitError.message());
+			"steady_timer wait failed: " + waitError.message());
 	}
 }
 
