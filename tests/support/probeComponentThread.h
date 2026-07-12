@@ -1,65 +1,19 @@
 #ifndef SPINSCALE_TEST_SUPPORT_PROBE_COMPONENT_THREAD_H
 #define SPINSCALE_TEST_SUPPORT_PROBE_COMPONENT_THREAD_H
 
-#include <chrono>
-#include <exception>
-#include <functional>
-#include <future>
-#include <memory>
-#include <stdexcept>
+/**	EXPLANATION:
+ * Compatibility shim: probe harness lives in spinscale_probe_support under
+ * sscl::probe. Test code may keep including this path and using sscl::tests
+ * names; tools should include <probe/probeComponentThread.h> directly.
+ */
 
-#include <spinscale/componentThread.h>
-#include <spinscale/co/invokers.h>
-#include <spinscale/co/nonViralTaskNursery.h>
+#include <probe/probeComponentThread.h>
 
 namespace sscl::tests {
 
-constexpr std::chrono::milliseconds defaultProbeTaskTimeout{10000};
-
-void runNonViralNurseryOnComponentThread(
-	const std::shared_ptr<sscl::ComponentThread>& componentThread,
-	std::function<sscl::co::NonViralNonPostingInvoker(
-		sscl::co::NonViralTaskNursery::Slot::Lease&)> invokerFactory,
-	std::chrono::milliseconds timeout = defaultProbeTaskTimeout);
-
-class ProbeComponentThreadHarness
-{
-public:
-	explicit ProbeComponentThreadHarness(
-		const char *threadName = "spinscale-probe");
-	~ProbeComponentThreadHarness();
-
-	ProbeComponentThreadHarness(const ProbeComponentThreadHarness &) = delete;
-	ProbeComponentThreadHarness &operator=(
-		const ProbeComponentThreadHarness &) = delete;
-
-	std::shared_ptr<sscl::ComponentThread> componentThread() const;
-
-	void runSync(
-		const std::function<void(
-			const std::shared_ptr<sscl::ComponentThread>&)>& work);
-
-	template <typename InvokerFactory>
-	void runNonViralNurseryTask(
-		InvokerFactory &&invokerFactory,
-		std::chrono::milliseconds timeout = defaultProbeTaskTimeout)
-	{
-		runSync(
-			[this, &invokerFactory, timeout](
-				const std::shared_ptr<sscl::ComponentThread>& componentThread)
-			{
-				sscl::tests::runNonViralNurseryOnComponentThread(
-					componentThread,
-					std::forward<InvokerFactory>(invokerFactory),
-					timeout);
-			});
-	}
-
-private:
-	std::string threadName;
-	std::shared_ptr<sscl::pptr::PuppeteerComponent> dummyComponent;
-	std::shared_ptr<sscl::ComponentThread> lastComponentThread;
-};
+using sscl::probe::defaultProbeTaskTimeout;
+using sscl::probe::runNonViralNurseryOnComponentThread;
+using sscl::probe::ProbeComponentThreadHarness;
 
 } // namespace sscl::tests
 

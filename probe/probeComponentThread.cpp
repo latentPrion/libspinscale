@@ -1,10 +1,10 @@
-#include <support/probeComponentThread.h>
+#include <probe/probeComponentThread.h>
 
 #include <iostream>
 
 #include <spinscale/component.h>
 
-namespace sscl::tests {
+namespace sscl::probe {
 
 namespace {
 
@@ -115,4 +115,4 @@ void runNonViralNurseryOnComponentThread(
 	nursery.syncAwaitAllSettlements(componentThread->getIoContext());
 }
 
-} // namespace sscl::tests
+} // namespace sscl::probe

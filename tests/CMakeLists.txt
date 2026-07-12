@@ -1,6 +1,5 @@
 add_library(spinscale_test_support STATIC
 	support/threadHarness.cpp
-	support/probeComponentThread.cpp
 )
 
 target_include_directories(spinscale_test_support PUBLIC
@@ -10,6 +9,7 @@ target_include_directories(spinscale_test_support PUBLIC
 
 target_link_libraries(spinscale_test_support PUBLIC
 	spinscale
+	spinscale_probe_support
 	gtest
 )
 

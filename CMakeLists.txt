@@ -162,6 +162,21 @@ endif()
 option(LIBSPINSCALE_BUILD_TESTS "Build libspinscale unit tests"
 	${_libspinscaleTestsDefault})
 
+option(LIBSPINSCALE_BUILD_PROBE_SUPPORT
+	"Build spinscale probe component-thread harness (tools and tests)"
+	OFF)
+
+# Tests always need the probe harness; tools may request it via cache/root.
+if(LIBSPINSCALE_BUILD_TESTS)
+	set(LIBSPINSCALE_BUILD_PROBE_SUPPORT ON CACHE BOOL
+		"Build spinscale probe component-thread harness (tools and tests)"
+		FORCE)
+endif()
+
+if(LIBSPINSCALE_BUILD_PROBE_SUPPORT)
+	add_subdirectory(probe)
+endif()
+
 if(LIBSPINSCALE_BUILD_TESTS)
 	if(NOT TARGET gtest AND NOT TARGET gtest_main)
 		set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
