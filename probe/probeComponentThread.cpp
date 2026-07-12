@@ -1,6 +1,8 @@
 #include <probe/probeComponentThread.h>
 
+#include <condition_variable>
 #include <iostream>
+#include <mutex>
 
 #include <spinscale/component.h>
 
@@ -25,12 +27,48 @@ public:
 	}
 };
 
+/**	EXPLANATION:
+ * PuppeteerThread starts its std::thread inside the constructor, but
+ * enable_shared_from_this::weak_this is only armed after make_shared returns.
+ * Without a barrier, initializeTls()'s shared_from_this() races and throws
+ * std::bad_weak_ptr. DedicatedIoThread uses the same handshake.
+ */
+struct ProbeThreadStartupState
+{
+	std::mutex mutex;
+	std::condition_variable condition;
+	bool allowInitialization = false;
+};
+
+void waitForProbeThreadStartupPermission(
+	const std::shared_ptr<ProbeThreadStartupState>& startupState)
+{
+	std::unique_lock<std::mutex> lock(startupState->mutex);
+	startupState->condition.wait(
+		lock,
+		[&startupState]() { return startupState->allowInitialization; });
+}
+
+void releaseProbeThreadStartupBarrier(
+	const std::shared_ptr<ProbeThreadStartupState>& startupState)
+{
+	{
+		std::lock_guard<std::mutex> guard(startupState->mutex);
+		startupState->allowInitialization = true;
+	}
+
+	startupState->condition.notify_all();
+}
+
 void probePuppeteerMain(
 	const sscl::PuppeteerThread::EntryFnArguments& args,
 	const std::function<void(
 		const std::shared_ptr<sscl::ComponentThread>&)>& work,
-	std::promise<std::exception_ptr>& donePromise)
+	std::promise<std::exception_ptr>& donePromise,
+	const std::shared_ptr<ProbeThreadStartupState>& startupState)
 {
+	waitForProbeThreadStartupPermission(startupState);
+
 	sscl::PuppeteerThread& thr = args.usableBeforeJolt;
 	thr.initializeTls();
 	sscl::ComponentThread::setPuppeteerThreadId(PROBE_PUPPETEER_THREAD_ID);
@@ -73,21 +111,23 @@ void ProbeComponentThreadHarness::runSync(
 {
 	std::promise<std::exception_ptr> donePromise;
 	std::future<std::exception_ptr> doneFuture = donePromise.get_future();
+	auto startupState = std::make_shared<ProbeThreadStartupState>();
 
 	std::shared_ptr<sscl::PuppeteerThread> runThread =
 		std::make_shared<sscl::PuppeteerThread>(
 			PROBE_PUPPETEER_THREAD_ID,
 			threadName,
-			[&work, &donePromise](
+			[&work, &donePromise, startupState](
 				const sscl::PuppeteerThread::EntryFnArguments& args)
 			{
-				probePuppeteerMain(args, work, donePromise);
+				probePuppeteerMain(args, work, donePromise, startupState);
 			},
 			*dummyComponent,
 			nullptr);
 
 	dummyComponent->thread = runThread;
 	lastComponentThread = runThread;
+	releaseProbeThreadStartupBarrier(startupState);
 	runThread->thread.join();
 
 	std::exception_ptr probeException = doneFuture.get();
