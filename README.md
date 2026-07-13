@@ -202,17 +202,19 @@ nursery.launch(
 		nvc.checkAndRethrowException();
 	});
 
-nursery.requestCancelOnAll();
 nursery.closeAdmission();
+nursery.requestCancelOnAll();
 nursery.syncAwaitAllSettlements(
 	sscl::ComponentThread::getSelf()->getIoContext());
 ```
 
 Each slot owns a `SyncCancelerForAsyncWork`. `requestCancelOnAll()` only signals
 cooperative stop; it does not destroy invokers. Invokers are retired when their
-completion callbacks run. Call `closeAdmission()` explicitly before
-`asyncAwaitAllSettlements()` or `syncAwaitAllSettlements()`; those APIs wait until
-all slots have retired naturally and throw if admission is still open.
+completion callbacks run. Call `closeAdmission()` before `requestCancelOnAll()`
+so no new work can be admitted after cancel begins, and call `closeAdmission()`
+explicitly before `asyncAwaitAllSettlements()` or `syncAwaitAllSettlements()`;
+those APIs wait until all slots have retired naturally and throw if admission is
+still open.
 
 `syncAwaitAllSettlements()` runs a nested `io_context` loop on the **calling
 thread** (it blocks in `run_one()` until every slot has retired). Pass the

@@ -55,9 +55,6 @@ struct MemberInvoker : MemberInvokerBase
  *	nursery member. The external submitter should add the complete flow to the
  *	nursery and then return; the nursery owns that flow until the flow settles.
  *
- *	Call closeAdmission() explicitly before asyncAwaitAllSettlements() or
- *	syncAwaitAllSettlements().
- *
  *	syncAwaitAllSettlements() runs a nested io_context loop on the calling
  *	thread (AsynchronousBridge). Pass the calling thread's io_context —
  *	typically
@@ -240,6 +237,36 @@ public:
 		s.rsrc.admissionOpen = true;
 	}
 
+	/**	EXPLANATION:
+	 * Stopping a nursery: always closeAdmission() before
+	 * requestCancelOnAll(). requestCancelOnAll() only marks currently
+	 * ACTIVE_UNSETTLED slots; it does not refuse new leases. If cancel
+	 * runs while admission is still open, a concurrent submitter can still
+	 * getNewSlotLease() / launch() after cancel has fanned out, and that
+	 * newly admitted work will not have been cancelled — it races past the
+	 * stop wave and keeps the drain from reaching "all settled" until it
+	 * finishes on its own (or a later cancel). Closing admission first
+	 * seals the nursery so cancel applies to a fixed membership set, then
+	 * drain with asyncAwaitAllSettlements() / syncAwaitAllSettlements()
+	 * (those APIs also require admission already closed).
+	 *
+	 * Preferred stop stack for a daemon/service that enqueues request
+	 * coroutines into the nursery: keep protocol "stop listening /
+	 * disconnect / refuse new connections and requests" separate from
+	 * protocol state destruction. Stop accepting at the protocol level
+	 * first, then nursery closeAdmission(), then requestCancelOnAll(),
+	 * then cancel any awaited I/O owned outside the cancelers, then drain,
+	 * then destroy protocol state. That ordering stops new work at the
+	 * source before admission is sealed.
+	 *
+	 * If the daemon/service cannot disconnect/stop listening separately
+	 * from destruction, the spinscale-using embedding project must handle
+	 * closed-admission failures when it tries to enqueue. For example,
+	 * catch the "admission closed" throw around nursery.launch() (or in
+	 * the factory that calls it) and emit a protocol-specific failure such
+	 * as "connection failed" or "request timed out" instead of letting the
+	 * exception escape the accept/request path unbounded.
+	 */
 	void closeAdmission()
 	{
 		sscl::SpinLock::Guard guard(s.lock);
