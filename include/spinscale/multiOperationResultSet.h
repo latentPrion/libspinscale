@@ -4,6 +4,9 @@
 #include <exception>
 
 namespace sscl {
+namespace co {
+struct Group;
+} // namespace co
 
 /** Plain aggregate for fan-out / fan-in results returned from coroutines. */
 struct MultiOperationResultSet
@@ -38,8 +41,28 @@ struct MultiOperationResultSetWithException
 	  memberFailureException(memberFailureExceptionIn)
 	{}
 
+	/** Summarize a settled Group into counts + aggregated member failure. */
+	explicit MultiOperationResultSetWithException(const co::Group &group);
+
 	bool hasMemberFailure() const
 		{ return memberFailureException != nullptr; }
+
+	/** Combine this result set with another phase's counts and exception. */
+	MultiOperationResultSetWithException mergeWith(
+		const MultiOperationResultSetWithException &other) const
+	{
+		std::exception_ptr memberFailure = memberFailureException;
+		if (!memberFailure && other.hasMemberFailure()) {
+			memberFailure = other.memberFailureException;
+		}
+
+		return MultiOperationResultSetWithException(
+			MultiOperationResultSet(
+				results.nTotal + other.results.nTotal,
+				results.nSucceeded + other.results.nSucceeded,
+				results.nFailed + other.results.nFailed),
+			memberFailure);
+	}
 
 	MultiOperationResultSet results;
 	std::exception_ptr memberFailureException = nullptr;

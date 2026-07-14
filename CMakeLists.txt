@@ -87,6 +87,7 @@ add_library(spinscale SHARED
 	src/puppetApplication.cpp
 	src/runtime.cpp
 	src/callableTracer.cpp
+	src/multiOperationResultSet.cpp
 )
 
 set_target_properties(spinscale PROPERTIES
