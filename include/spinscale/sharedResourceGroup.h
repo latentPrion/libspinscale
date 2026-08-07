@@ -2,6 +2,7 @@
 #define SHARED_RESOURCE_GROUP_H
 
 #include <string>
+#include <utility>
 
 namespace sscl {
 
@@ -18,6 +19,11 @@ public:
 	SharedResourceGroup(
 		const std::string& lockName, const ResourceType& initialRsrc)
 	: lock(lockName), rsrc(initialRsrc)
+	{}
+
+	SharedResourceGroup(
+		const std::string& lockName, ResourceType&& initialRsrc)
+	: lock(lockName), rsrc(std::move(initialRsrc))
 	{}
 
 	~SharedResourceGroup() = default;
