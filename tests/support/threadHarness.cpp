@@ -168,12 +168,21 @@ std::shared_ptr<sscl::PuppeteerThread> DedicatedIoThread::componentThread() cons
 
 void DedicatedIoThread::stopAndJoin()
 {
-	if (!thread) {
-		return;
-	}
+	requestStop();
+	joinThread();
+}
+
+void DedicatedIoThread::requestStop()
+{
+	if (!thread) { return; }
 
 	releaseStartupBarrier();
 	thread->getIoContext().stop();
+}
+
+void DedicatedIoThread::joinThread()
+{
+	if (!thread) { return; }
 
 	if (thread->thread.joinable()) {
 		thread->thread.join();
@@ -300,8 +309,10 @@ PostingThreadSet::PostingThreadSet()
 
 PostingThreadSet::~PostingThreadSet()
 {
-	restorePreviousPuppeteer();
+	requestStopOnAllThreads();
+	joinAllThreads();
 	unregisterAllThreads();
+	restorePreviousPuppeteer();
 }
 
 void PostingThreadSet::registerAllThreads()
@@ -337,6 +348,26 @@ void PostingThreadSet::restorePreviousPuppeteer()
 {
 	sscl::ComponentThread::setPuppeteerThreadId(previousPuppeteerThreadId);
 	sscl::ComponentThread::setPuppeteerThread(previousPuppeteerThread);
+}
+
+void PostingThreadSet::requestStopOnAllThreads()
+{
+	calleeThread.requestStop();
+	alternateThread.requestStop();
+	bodyThread.requestStop();
+	worldThread.requestStop();
+	legThread.requestStop();
+	callerThread.requestStop();
+}
+
+void PostingThreadSet::joinAllThreads()
+{
+	calleeThread.joinThread();
+	alternateThread.joinThread();
+	bodyThread.joinThread();
+	worldThread.joinThread();
+	legThread.joinThread();
+	callerThread.joinThread();
 }
 
 DedicatedIoThread &PostingThreadSet::thread(PostingThreadRole role)

@@ -110,6 +110,8 @@ public:
 	std::thread::id osThreadId() const;
 	std::shared_ptr<sscl::PuppeteerThread> componentThread() const;
 
+	void requestStop();
+	void joinThread();
 	void stopAndJoin();
 
 	struct StartupState;
@@ -246,6 +248,8 @@ private:
 	void unregisterAllThreads();
 	void installCallerAsPuppeteer();
 	void restorePreviousPuppeteer();
+	void requestStopOnAllThreads();
+	void joinAllThreads();
 
 	DedicatedIoThread callerThread;
 	DedicatedIoThread calleeThread;
