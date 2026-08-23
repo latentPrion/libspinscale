@@ -1,3 +1,7 @@
+#include <boostAsioLinkageFix.h>
+
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <exception>
@@ -5,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -28,6 +33,7 @@ constexpr int expectedNonStdThrowValue = 42;
 constexpr int wave2ImmediateSettlementLabel = 1000;
 constexpr const char *expectedThrowMessage =
 	"group_edge_test intentional failure";
+constexpr std::array<int, 3> immediateSettlementValues = {10, 20, 30};
 
 using CallerDriver =
 	sscl::tests::RoleNonViralPostingInvoker<
@@ -76,6 +82,31 @@ CalleeIntInvoker waitThenThrowIntAfterDelay(int delayMilliseconds)
 CalleeIntInvoker returnLabelImmediately(int label)
 {
 	co_return label;
+}
+
+void requireImmediateSettlementValues(
+	const std::vector<sscl::co::Group::SettlementDescriptor>& descriptors)
+{
+	if (descriptors.size() != immediateSettlementValues.size()) {
+		throw std::runtime_error("immediate settlement count mismatch");
+	}
+
+	std::array<int, immediateSettlementValues.size()> actualValues;
+	std::transform(
+		descriptors.begin(),
+		descriptors.end(),
+		actualValues.begin(),
+		[](const sscl::co::Group::SettlementDescriptor& descriptor)
+		{
+			sscl::tests::requireCompletedSettlement(descriptor);
+			return sscl::tests::completedIntValue(
+				descriptor.invokerAs<CalleeIntInvoker>());
+		});
+	std::sort(actualValues.begin(), actualValues.end());
+
+	if (actualValues != immediateSettlementValues) {
+		throw std::runtime_error("immediate settlement values mismatch");
+	}
 }
 
 CalleeVoidInvoker voidMemberAfterDelay(int delayMilliseconds)
@@ -236,16 +267,13 @@ CallerDriver allCompleteBeforeCoAwait(
 
 	auto awaitFirst = group.getAwaitFirstSettlementInvoker();
 	auto [firstDescriptor, allAfterFirst] = co_await awaitFirst;
-	sscl::tests::requireCompletedIntSettlement<CalleeIntInvoker>(
-		firstDescriptor,
-		10);
+	sscl::tests::requireCompletedSettlement(firstDescriptor);
 
 	auto awaitAll = group.getAwaitAllSettlementsInvoker();
 	auto &allDescriptors = co_await awaitAll;
 
-	if (allDescriptors.size() != 3 || allAfterFirst.size() != 3) {
-		throw std::runtime_error("immediate settlement count mismatch");
-	}
+	requireImmediateSettlementValues(allAfterFirst);
+	requireImmediateSettlementValues(allDescriptors);
 
 	co_return;
 }
