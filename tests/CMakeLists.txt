@@ -54,3 +54,7 @@ add_spinscale_gtest(co_group_timer_tests
 add_spinscale_gtest(co_component_continuation_tests
 	co/component_continuation_tests.cpp
 )
+
+add_spinscale_gtest(threadHarnessLifecycle_tests
+	support/threadHarnessLifecycle_tests.cpp
+)
