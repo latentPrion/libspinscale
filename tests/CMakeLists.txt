@@ -55,6 +55,10 @@ add_spinscale_gtest(co_component_continuation_tests
 	co/component_continuation_tests.cpp
 )
 
+add_spinscale_gtest(co_yield_tests
+	co/yield_tests.cpp
+)
+
 add_spinscale_gtest(threadHarnessLifecycle_tests
 	support/threadHarnessLifecycle_tests.cpp
 )
