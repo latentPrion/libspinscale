@@ -10,14 +10,23 @@
 
 namespace sscl::co {
 
-/** Launch a non-viral coroutine on the current ComponentThread io_context and
+/**	EXPLANATION:
+ * Launch a non-viral coroutine on the current ComponentThread io_context and
  * block until it settles, rethrowing any stored exception.
+ *
+ * The invoker factory must return a NonViralNonPostingInvoker (or
+ * NonViralPostingInvoker) constructed with lease.getExceptionStorage() and
+ * lease.getCallerLambda(). Do not return a viral invoker directly: viral
+ * coroutines have no callerLambda, so the nursery slot never retires and this
+ * drain hangs. Non-viral wrappers should co_await viral work inside the
+ * wrapper body.
  */
 template<typename InvokerFactory>
 void syncAwaitNonViralCoro(InvokerFactory&& _invokerFactory)
 {
 	std::exception_ptr slotException;
 
+	/** Factory must return NonViral* invoker bound to lease callerLambda. */
 	NonViralTaskNursery nursery;
 	nursery.openAdmission();
 	nursery.launch(
