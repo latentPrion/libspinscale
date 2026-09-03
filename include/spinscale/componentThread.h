@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <string>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/post.hpp>
 #include <spinscale/cps/callback.h>
 
@@ -23,6 +24,10 @@ namespace sscl {
 class PuppetComponent;
 class PuppeteerThread;
 class PuppetThread;
+
+namespace co {
+class CoConditionVariable;
+}
 
 namespace pptr {
 class PuppeteerComponent;
@@ -36,7 +41,9 @@ class ComponentThread
 protected:
 	ComponentThread(ThreadId _id, std::string _name)
 	: id(_id), name(std::move(_name)),
-	work(boost::asio::make_work_guard(io_context)), keepLooping(true)
+	io_context(),
+	work(boost::asio::make_work_guard(io_context)),
+	keepLooping(true)
 	{}
 
 public:
@@ -151,15 +158,9 @@ public:
 	PuppetThread(
 		ThreadId _id, std::string name,
 		entryPointFn entryPoint, PuppetComponent &component,
-		preJoltHookFn preJoltFn)
-	:	ComponentThread(_id, std::move(name)),
-	pinnedCpuId(-1),
-	pause_work(boost::asio::make_work_guard(pause_io_context)),
-	entryFnArguments(*this, component, preJoltFn),
-	thread(std::move(entryPoint), std::cref(entryFnArguments))
-	{}
-
-	virtual ~PuppetThread() = default;
+		preJoltHookFn preJoltFn);
+	/** Out-of-line: unique_ptr<CoConditionVariable> needs a complete type. */
+	virtual ~PuppetThread();
 
 	void initializeTls(void);
 
@@ -295,11 +296,26 @@ public:
 	// CPU management methods
 	void pinToCpu(int cpuId);
 
+	/** After main loops return: drop work guards and destroy both queues. */
+	void destroyIoContextsAfterMainLoop(void);
+	/** Wait until exitThreadReq has queued both dual-posts (then destroy). */
+	void syncAwaitExitDualPostsCompleted(void);
+	boost::asio::io_context& getPauseIoContext(void)
+		{ return pause_io_context; }
+
 public:
 	int pinnedCpuId;
 	boost::asio::io_context pause_io_context;
 	boost::asio::executor_work_guard<
 		boost::asio::io_context::executor_type> pause_work;
+	/**	EXPLANATION:
+	 * exitThreadReq dual-posts to main then pause, then signals this CV.
+	 * defaultPuppetMain syncAwaits it before destroyIoContextsAfterMainLoop so
+	 * the pause post cannot race destroyed / placement-new'd contexts.
+	 * unique_ptr (not by-value): coConditionVariable.h includes this header, so
+	 * the CV type is incomplete here; PuppetThread ctor/dtor live in the .cpp.
+	 */
+	std::unique_ptr<sscl::co::CoConditionVariable> exitDualPostsCompletedCv;
 
 public:
 	EntryFnArguments entryFnArguments;

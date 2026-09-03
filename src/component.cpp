@@ -82,6 +82,16 @@ void PuppetComponent::defaultPuppetMain(
 	}
 
 	comp.postLoopHook();
+
+	/** exitThreadReq signals after both dual-posts are queued; wait before
+	 * destroying contexts so the pause post cannot race teardown.
+	 */
+	thr.syncAwaitExitDualPostsCompleted();
+
+	/** Abandoned dual-posted exit ops (and any other deferred handlers) are
+	 * destroyed here via ~io_context, after run() has returned.
+	 */
+	thr.destroyIoContextsAfterMainLoop();
 }
 
 namespace pptr {

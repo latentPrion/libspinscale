@@ -1,4 +1,6 @@
 #include <unistd.h>
+#include <functional>
+#include <new>
 #include <iostream>
 #include <string>
 #include <pthread.h>
@@ -10,6 +12,9 @@
 #include <spinscale/co/invokers.h>
 #include <spinscale/component.h>
 #include <spinscale/componentThread.h>
+#include <spinscale/co/coConditionVariable.h>
+#include <spinscale/co/syncAwaitNonViralCoro.h>
+#include <spinscale/co/nonViralTaskNursery.h>
 
 namespace sscl {
 
@@ -57,6 +62,22 @@ void PuppeteerThread::initializeTls(void)
 	thisComponentThread = shared_from_this();
 }
 
+PuppetThread::PuppetThread(
+	ThreadId _id, std::string _name,
+	entryPointFn entryPoint, PuppetComponent &component,
+	preJoltHookFn preJoltFn)
+:	ComponentThread(_id, std::move(_name)),
+pinnedCpuId(-1),
+pause_io_context(),
+pause_work(boost::asio::make_work_guard(pause_io_context)),
+exitDualPostsCompletedCv(std::make_unique<sscl::co::CoConditionVariable>()),
+entryFnArguments(*this, component, preJoltFn),
+thread(std::move(entryPoint), std::cref(entryFnArguments))
+{}
+
+PuppetThread::~PuppetThread()
+{}
+
 void PuppetThread::initializeTls(void)
 {
 	thisComponentThread = shared_from_this();
@@ -103,7 +124,7 @@ public:
 			"JOLT request."
 			<< "\n";
 
-		target->io_context.stop();
+		target->getIoContext().stop();
 		callOriginalCb();
 	}
 
@@ -129,7 +150,7 @@ public:
 			"exitThread (main queue)." << "\n";
 
 		target->cleanup();
-		target->io_context.stop();
+		target->getIoContext().stop();
 		callOriginalCb();
 	}
 
@@ -141,8 +162,8 @@ public:
 			"exitThread (pause queue)."<< "\n";
 
 		target->cleanup();
-		target->pause_io_context.stop();
-		target->io_context.stop();
+		target->getPauseIoContext().stop();
+		target->getIoContext().stop();
 		callOriginalCb();
 	}
 
@@ -158,8 +179,8 @@ public:
 		 * have a chance to invoke the callback until it's unblocked.
 		 */
 		callOriginalCb();
-		target->pause_io_context.restart();
-		target->pause_io_context.run();
+		target->getPauseIoContext().restart();
+		target->getPauseIoContext().run();
 	}
 
 	void resumeThreadReq1_posted(
@@ -169,7 +190,7 @@ public:
 		std::cout << __func__ << ": Thread '" << target->name << "': handling "
 			"resumeThread." << "\n";
 
-		target->pause_io_context.stop();
+		target->getPauseIoContext().stop();
 		callOriginalCb();
 	}
 };
@@ -229,6 +250,58 @@ void PuppetThread::startThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callba
 			request.get(), request)));
 }
 
+void PuppetThread::destroyIoContextsAfterMainLoop(void)
+{
+	/**	EXPLANATION:
+	 * exitThreadReq dual-posts to main and pause. The unused peer post keeps
+	 * shared_ptr<ThreadLifetimeMgmtOp> -> shared_ptr<PuppetThread>, cycling
+	 * with this object through the queue. Explicitly destroying both
+	 * io_contexts after the main loops return runs scheduler::shutdown /
+	 * o->destroy() on pending ops (no invoke), breaking that cycle.
+	 * Placement-new reconstructs live members so ~PuppetThread is well-defined.
+	 *
+	 * Callers must syncAwaitExitDualPostsCompleted() first so both dual-posts
+	 * are queued before these contexts are torn down.
+	 */
+	using WorkGuard = boost::asio::executor_work_guard<
+		boost::asio::io_context::executor_type>;
+	pause_work.~WorkGuard();
+	work.~WorkGuard();
+	pause_io_context.~io_context();
+	io_context.~io_context();
+	new (&io_context) boost::asio::io_context();
+	new (&pause_io_context) boost::asio::io_context();
+	new (&work) WorkGuard(boost::asio::make_work_guard(io_context));
+	new (&pause_work) WorkGuard(boost::asio::make_work_guard(pause_io_context));
+}
+
+namespace {
+
+sscl::co::NonViralNonPostingInvoker awaitExitDualPostsCompletedCInd(
+	std::exception_ptr &, std::function<void()>, PuppetThread &thr)
+{
+	co_await thr.exitDualPostsCompletedCv->getWaitForInvoker();
+	co_return;
+}
+
+} // namespace
+
+void PuppetThread::syncAwaitExitDualPostsCompleted(void)
+{
+	/** exitThreadReq stop()ped this context; restart so CV waiter resume posts
+	 * (and nursery drain) can run if signal races after the main loop returns.
+	 */
+	getIoContext().restart();
+	sscl::co::syncAwaitNonViralCoro(
+		[this](sscl::co::NonViralTaskNursery::Slot::Lease &lease)
+		{
+			return awaitExitDualPostsCompletedCInd(
+				lease.getExceptionStorage(),
+				lease.getCallerLambda(),
+				*this);
+		});
+}
+
 void PuppetThread::exitThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback)
 {
 	std::shared_ptr<ComponentThread> caller = getSelf();
@@ -236,7 +309,7 @@ void PuppetThread::exitThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callbac
 		caller, std::static_pointer_cast<PuppetThread>(shared_from_this()),
 		callback);
 
-		boost::asio::post(this->getIoContext(),
+	boost::asio::post(io_context,
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::exitThreadReq1_mainQueue_posted,
 			request.get(), request)));
@@ -245,6 +318,8 @@ void PuppetThread::exitThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callbac
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::exitThreadReq1_pauseQueue_posted,
 			request.get(), request)));
+
+	exitDualPostsCompletedCv->signal();
 }
 
 void PuppetThread::pauseThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callback)
@@ -280,7 +355,7 @@ void PuppetThread::resumeThreadReq(cps::Callback<threadLifetimeMgmtOpCbFn> callb
 		caller, std::static_pointer_cast<PuppetThread>(shared_from_this()),
 		callback);
 
-	boost::asio::post(pause_io_context,
+	boost::asio::post(getPauseIoContext(),
 		STC(std::bind(
 			&ThreadLifetimeMgmtOp::resumeThreadReq1_posted,
 			request.get(), request)));
